@@ -60,7 +60,7 @@ end
 --]]
 function Kernel.signalOne(self, eventName)
 	if not self.TasksSuspendedForSignal[eventName] then
-		return false, "event not registered"
+		return false, "event not registered", eventName
 	end
 
 	local nTasks = #self.TasksSuspendedForSignal[eventName]
