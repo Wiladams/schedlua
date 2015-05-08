@@ -97,6 +97,7 @@ struct udphdr {
 ]]
 
 ffi.cdef[[
+int fcntl (int __fd, int __cmd, ...);
 int close(int fd);
 ssize_t read(int fd, void *buf, size_t count);
 ssize_t write(int fd, const void *buf, size_t count);
@@ -227,11 +228,11 @@ IPPROTO_MAX          =   256;
 
 
 if ffi.abi("be") then -- nothing to do
-  function exports.htonl(b) return b end
-  function exports.htons(b) return b end
+    function exports.htonl(b) return b end
+    function exports.htons(b) return b end
 else
-  function exports.htonl(b) return bit.bswap(b) end
-  function exports.htons(b) return bit.rshift(bit.bswap(b), 16) end
+    function exports.htonl(b) return bit.bswap(b) end
+    function exports.htons(b) return bit.rshift(bit.bswap(b), 16) end
 end
 exports.ntohl = exports.htonl -- reverse is the same
 exports.ntohs = exports.htons -- reverse is the same
@@ -241,6 +242,33 @@ exports.ntohs = exports.htons -- reverse is the same
 -- To select the IP level.
 exports.SOL_IP  = 0;
 
+-- from /usr/include/asm-generic/socket.h
+-- For setsockopt(2) 
+exports.SOL_SOCKET  = 1;
+
+exports.SO_DEBUG  =1
+exports.SO_REUSEADDR  =2
+exports.SO_TYPE   =3
+exports.SO_ERROR  =4
+exports.SO_DONTROUTE  =5
+exports.SO_BROADCAST  =6
+exports.SO_SNDBUF =7
+exports.SO_RCVBUF =8
+exports.SO_SNDBUFFORCE  =32
+exports.SO_RCVBUFFORCE  =33
+exports.SO_KEEPALIVE  =9
+exports.SO_OOBINLINE  =10
+exports.SO_NO_CHECK =11
+exports.SO_PRIORITY =12
+exports.SO_LINGER =13
+exports.SO_BSDCOMPAT  =14
+exports.SO_REUSEPORT  =15
+exports.SO_PASSCRED =16
+exports.SO_PEERCRED =17
+exports.SO_RCVLOWAT =18
+exports.SO_SNDLOWAT =19
+exports.SO_RCVTIMEO =20
+exports.SO_SNDTIMEO =21
 
 exports.SOL_IPV6    = 41;
 exports.SOL_ICMPV6  = 58;
@@ -255,6 +283,7 @@ exports.SOL_IRDA	 = 266;
 
 -- Maximum queue length specifiable by listen.
 exports.SOMAXCONN	= 128;
+
 
 -- for SOL_IP Options
 exports.IP_DEFAULT_MULTICAST_TTL     =   1;
@@ -312,7 +341,13 @@ local bsdsocket_mt = {
         if s < 0 then
             return nil, ffi.errno();
         end
-        return ffi.new(ct, s);
+
+        local obj = ffi.new(ct, s);
+        -- register the socket to be watched by
+        -- epoll, before returning
+        --epoll:watch(s);
+
+        return obj;
     end;
 
     __gc = function(self)
@@ -343,14 +378,35 @@ local bsdsocket_mt = {
 
         write = function(self, buff, len)
         end,
+
+        setSocketOption = function(self, level, optname, on)
+            local feature_on = ffi.new("int[1]")
+            if on then feature_on[0] = 1; end
+            local ret = ffi.C.setsockopt(self.sockfd, level, optname, feature_on, ffi.sizeof("int"))
+            return ret == 0;
+        end,
+
+        setNonblocking = function(self)
+            local FIONBIO=0x5421;
+            local feature_on = ffi.new("int[1]",1)
+            local ret = ffi.C.ioctl(self.sockfd, FIONBIO, feature_on)
+            return ret == 0;
+        end,
+
+        setUseKeepAlive = function(self, on)
+            return self:setSocketOption(SOL_SOCKET, SO_KEEPALIVE, on);
+        end,
+
+        setReuseAddress = function(self, on)
+            return self:setSocketOption(SOL_SOCKET, SO_REUSEADDR, on);
+        end,
+
     };
 }
 ffi.metatype(bsdsocket, bsdsocket_mt);
 exports.bsdsocket = bsdsocket;
 
---function exports.close(s)
- --   ffi.C.close(s);
---end
+
 
 function exports.connect(s, sa)
   local ret = tonumber(ffi.C.connect(s.sockfd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));

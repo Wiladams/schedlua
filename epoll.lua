@@ -97,7 +97,7 @@ local epollset_mt = {
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_ADD, fd, event)
 		end,
 
-		delete = function(self, fd)
+		delete = function(self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_DEL, fd, event)
 		end,
 
