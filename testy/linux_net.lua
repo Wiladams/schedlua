@@ -2,7 +2,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 
 
-
+local exports = nil;
 
 
 ffi.cdef[[
@@ -30,23 +30,25 @@ struct in6_addr {
 ffi.cdef[[
 /* Structure describing a generic socket address.  */
 struct sockaddr {
-//  uint8_t       sa_len;
   sa_family_t   sa_family;
   char          sa_data[14];
 };
+]]
 
+ffi.cdef[[
 struct sockaddr_in {
-//  uint8_t         sin_len;
   sa_family_t     sin_family;
   in_port_t       sin_port;
   struct in_addr  sin_addr;
-//  int8_t          sin_zero[8];
     unsigned char sin_zero[sizeof (struct sockaddr) -
       (sizeof (unsigned short int)) -
       sizeof (in_port_t) -
       sizeof (struct in_addr)];
 };
+]]
 
+
+ffi.cdef[[
 struct sockaddr_in6 {
   uint8_t         sin6_len;
   sa_family_t     sin6_family;
@@ -235,21 +237,129 @@ exports.ntohl = exports.htonl -- reverse is the same
 exports.ntohs = exports.htons -- reverse is the same
 
 
--- Socket level values.  
-exports.SOL_RAW		= 255;
+-- Socket level values.
+-- To select the IP level.
+exports.SOL_IP  = 0;
+
+
+exports.SOL_IPV6    = 41;
+exports.SOL_ICMPV6  = 58;
+
+exports.SOL_RAW		 = 255;
 exports.SOL_DECNET  =    261;
 exports.SOL_X25     =    262;
-exports.SOL_PACKET	= 263;
-exports.SOL_ATM		= 264;	-- ATM layer (cell level).
-exports.SOL_AAL		= 265;	-- ATM Adaption Layer (packet level).
-exports.SOL_IRDA	= 266;
+exports.SOL_PACKET  = 263;
+exports.SOL_ATM		 = 264;	-- ATM layer (cell level).
+exports.SOL_AAL		 = 265;	-- ATM Adaption Layer (packet level).
+exports.SOL_IRDA	 = 266;
 
 -- Maximum queue length specifiable by listen.
 exports.SOMAXCONN	= 128;
 
+-- for SOL_IP Options
+exports.IP_DEFAULT_MULTICAST_TTL     =   1;
+exports.IP_DEFAULT_MULTICAST_LOOP    =   1;
+exports.IP_MAX_MEMBERSHIPS           =   20;
+
+-- constants should be used for the second parameter of `shutdown'.
+exports.SHUT_RD = 0,  -- No more receptions.
+exports.SHUT_WR,    -- No more transmissions.
+exports.SHUT_RDWR   -- No more receptions or transmissions.
 
 
+local sockaddr_in = ffi.typeof("struct sockaddr_in");
+local sockaddr_in_mt = {
+  __new = function(ct, address, port, family)
+      family = family or AF_INET;
 
+      local sa = ffi.new(ct)
+      sa.sin_family = family;
+      sa.sin_port = exports.htons(port)
+      if type(address) == "number" then
+        addr.sin_addr.s_addr = address;
+      elseif type(address) == "string" then
+        local inp = ffi.new("struct in_addr")
+        local ret = ffi.C.inet_aton (address, inp);
+        sa.sin_addr.s_addr = inp.s_addr;
+      end
+
+      return sa;
+  end;
+
+}
+ffi.metatype(sockaddr_in, sockaddr_in_mt);
+exports.sockaddr_in = sockaddr_in;
+
+
+-- the bsdsocket type gives us a garbage collectible
+-- place to stick the file descriptor associated with
+-- a socket.  Also, the metatable gives a place to 
+-- implement fairly esoteric socket related functions.
+ffi.cdef[[
+typedef struct bsdsocket_t
+{
+  int sockfd;
+} bsdsocket;
+]]
+
+local bsdsocket = ffi.typeof("struct bsdsocket_t")
+local bsdsocket_mt = {
+    __new = function(ct, kind, flags, family)
+        kind = kind or exports.SOCK_STREAM;
+        family = family or exports.AF_INET
+        flags = flags or 0;
+        local s = ffi.C.socket(family, kind, flags);
+        if s < 0 then
+            return nil, ffi.errno();
+        end
+        return ffi.new(ct, s);
+    end;
+
+    __gc = function(self)
+        if self.sockfd > -1 then
+            self:close();
+        end
+    end;
+
+    __index = {
+        close = function(self)
+            ffi.C.close(self.sockfd);
+            self.sockfd = -1; -- make it invalid
+        end,
+
+        read = function(self, buff, bufflen)
+            local bytesRead = tonumber(ffi.C.read(self.sockfd, buff, bufflen));
+
+            if bytesRead > 0 then
+                return bytesRead;
+            end
+
+            if bytesRead == 0 then
+              return 0;
+            end
+
+            return false, ffi.errno();
+        end,
+
+        write = function(self, buff, len)
+        end,
+    };
+}
+ffi.metatype(bsdsocket, bsdsocket_mt);
+exports.bsdsocket = bsdsocket;
+
+--function exports.close(s)
+ --   ffi.C.close(s);
+--end
+
+function exports.connect(s, sa)
+  local ret = tonumber(ffi.C.connect(s.sockfd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));
+  if ret ~= 0 then
+    return false, ffi.errno();
+  end
+
+  return true;
+end
 
 setmetatable(exports, {
 	__call = function(self, params)
@@ -259,6 +369,7 @@ setmetatable(exports, {
 				_G[k] = v;
 			end
 		end
+    return self;
 	end,
 })
 

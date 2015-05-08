@@ -162,7 +162,7 @@ end
 exports.O_RDONLY	=   00;
 exports.O_WRONLY	=   01;
 exports.O_RDWR		=   02;
-exports.O_CREAT	  	= 0100;
+exports.O_CREAT	  = 0100;
 
 
 -- File system
