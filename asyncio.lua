@@ -32,7 +32,7 @@ setmetatable(AsyncIO, {
 			self:globalize();
 		end
 		
-		if self.Kernel and params.AutoStart then
+		if self.Kernel and params.AutoStart ~= false then
 			self.Kernel:spawn(Functor(AsyncIO.watchdog, AsyncIO))
 		end
 
@@ -55,7 +55,7 @@ end
 function AsyncIO.watchForIOEvents(self, fd)
 	local event = ffi.new("struct epoll_event")
 	event.data.fd = fd;
-	event.events = bor(EPOLLOUT,EPOLLIN, EPOLLRDHUP, EPOLLERR, EPOLLET); -- EPOLLET
+	event.events = bor(epoll.EPOLLOUT,epoll.EPOLLIN, epoll.EPOLLRDHUP, epoll.EPOLLERR, epoll.EPOLLET);
 
 	return self.EPollSet:add(fd, event);
 end

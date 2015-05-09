@@ -144,9 +144,13 @@ exports.epollset = epollset;
 
 -- export to global namespace
 setmetatable(exports, {
-	__call = function(self)
-		for k,v in pairs(exports) do
-			_G[k] = v;
+	__call = function(self, params)
+		params = params or {}
+
+		if params.exportglobal then
+			for k,v in pairs(exports) do
+				_G[k] = v;
+			end
 		end
 
 		return self;

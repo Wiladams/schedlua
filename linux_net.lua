@@ -1,6 +1,11 @@
 local ffi = require("ffi")
 local bit = require("bit")
+local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
+local Kernel = require("kernel")
+local asyncio = require("asyncio"){Kernel = Kernel, AutoStart=true}
+local epoll = require("epoll")
+local errnos = require("linux_errno").errnos
 
 local exports = nil;
 
@@ -19,7 +24,7 @@ typedef unsigned int socklen_t;
 
 ffi.cdef[[
 struct in_addr {
-  in_addr_t       s_addr;
+    in_addr_t       s_addr;
 };
 
 struct in6_addr {
@@ -135,6 +140,8 @@ int recvmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int
 
 
 local exports  = {
+FIONBIO = 0x5421;
+
 INADDR_ANY             = 0x00000000;
 INADDR_LOOPBACK        = 0x7f000001;
 INADDR_BROADCAST       = 0xffffffff;
@@ -301,7 +308,7 @@ exports.SHUT_RDWR   -- No more receptions or transmissions.
 local sockaddr_in = ffi.typeof("struct sockaddr_in");
 local sockaddr_in_mt = {
   __new = function(ct, address, port, family)
-      family = family or AF_INET;
+      family = family or exports.AF_INET;
 
       local sa = ffi.new(ct)
       sa.sin_family = family;
@@ -321,6 +328,202 @@ local sockaddr_in_mt = {
 ffi.metatype(sockaddr_in, sockaddr_in_mt);
 exports.sockaddr_in = sockaddr_in;
 
+
+
+-- the filedesc type gives an easy place to hang things
+-- related to a file descriptor.  Primarily it keeps the 
+-- basic file descriptor.  
+-- It also performs the async read/write operations
+
+ffi.cdef[[
+typedef struct filedesc_t {
+  int fd;
+  struct epoll_event;
+} filedesc;
+]]
+local filedesc = ffi.typeof("struct filedesc_t")
+local filedesc_mt = {
+    __new = function(ct, fd)
+        local obj = ffi.new(ct, fd);
+        obj:setNonBlocking(true);
+        asyncio:watchForIOEvents(fd);
+
+        return obj;
+    end;
+
+    __gc = function(self)
+        if self.fd > -1 then
+            self:close();
+        end
+    end;
+
+    __index = {
+        close = function(self)
+            ffi.C.close(self.fd);
+            self.fd = -1; -- make it invalid
+        end,
+
+        read = function(self, buff, bufflen)
+            local bytes = tonumber(ffi.C.read(self.fd, buff, bufflen));
+
+            if bytes > 0 then
+                return bytes;
+            end
+
+            if bytes == 0 then
+              return 0;
+            end
+
+            return false, ffi.errno();
+        end,
+
+        write = function(self, buff, len)
+            local bytes = tonumber(ffi.C.write(self.fd, buff, bufflen));
+
+            if bytes > 0 then
+                return bytes;
+            end
+
+            if bytes == 0 then
+              return 0;
+            end
+
+            return false, ffi.errno();
+        end,
+
+        setNonBlocking = function(self)
+            local feature_on = ffi.new("int[1]",1)
+            local ret = ffi.C.ioctl(self.fd, exports.FIONBIO, feature_on)
+            return ret == 0;
+        end,
+
+    };
+}
+ffi.metatype(filedesc, filedesc_mt);
+exports.filedesc = filedesc;
+
+
+local AsyncSocket = {}
+setmetatable(AsyncSocket, {
+    __call = function(self, ...)
+        return self:new(...);
+    end,
+})
+
+local AsyncSocket_mt = {
+    __index = AsyncSocket;
+}
+
+function AsyncSocket.init(self, sock)
+    local obj = {
+        fd = filedesc(sock);
+    }
+    setmetatable(obj, AsyncSocket_mt);
+
+    return obj;
+end
+
+function AsyncSocket.new(self, kind, flags, family)
+    kind = kind or exports.SOCK_STREAM;
+    family = family or exports.AF_INET
+    flags = flags or 0;
+    local s = ffi.C.socket(family, kind, flags);
+    if s < 0 then
+        return nil, ffi.errno();
+    end
+
+    return self:init(s);
+end
+
+AsyncSocket.setSocketOption = function(self, optname, on, level)
+    local feature_on = ffi.new("int[1]")
+    if on then feature_on[0] = 1; end
+    level = level or exports.SOL_SOCKET 
+
+    local ret = ffi.C.setsockopt(self.fd.fd, level, optname, feature_on, ffi.sizeof("int"))
+    return ret == 0;
+end
+
+AsyncSocket.setUseKeepAlive = function(self, on)
+    return self:setSocketOption(exports.SO_KEEPALIVE, on);
+end
+
+AsyncSocket.setReuseAddress = function(self, on)
+    return self:setSocketOption(exports.SO_REUSEADDR, on);
+end
+
+function AsyncSocket.getLastError(self)
+    local retVal = ffi.new("int[1]")
+    local retValLen = ffi.new("int[1]", ffi.sizeof("int"))
+
+    local ret = self:getSocketOption(exports.SO_ERROR, retVal, retValLen)
+
+    return retVal[0];
+end
+
+function AsyncSocket.connect(self, addr, port)
+    local sa, err = sockaddr_in(addr, port);
+    local ret = tonumber(ffi.C.connect(self.fd.fd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));
+
+    local err = ffi.errno();
+    if ret ~= 0 then
+      if  err ~= errnos.EINPROGRESS then
+        return false, err;
+      end
+    end
+
+    -- now wait for the socket to be writable
+    --
+    local event = ffi.new("struct epoll_event")
+    event.data.fd = self.fd.fd;
+    event.events = bor(epoll.EPOLLOUT,epoll.EPOLLRDHUP, epoll.EPOLLERR, epoll.EPOLLET); -- EPOLLET
+
+    local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
+
+    --print("async_connect(), 3.0: ", success, err)
+
+    return success, err;
+end
+
+function AsyncSocket.read(self, buff, bufflen)
+  local event = ffi.new("struct epoll_event")
+  event.data.fd = self.fd.fd;
+  event.events = bor(epoll.EPOLLIN,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
+
+  local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
+  --print(string.format("async_read, after wait: 0x%x %s", success, tostring(err)))
+
+  local bytesRead = 0;
+
+  if band(success, epoll.EPOLLIN) > 0 then
+    bytesRead, err = self.fd:read(buff, bufflen);
+    --print("async_read(), bytes read: ", bytesRead, err)
+    return bytesRead, err;
+  end
+
+  return bytesRead, err;
+end
+
+function AsyncSocket.write(self, buff, bufflen)
+  local event = ffi.new("struct epoll_event")
+  event.data.fd = sock.fd;
+  event.events = bor(epoll.EPOLLOUT,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
+
+  local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
+  --print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
+
+  local bytes = 0;
+
+  if band(success, epoll.EPOLLOUT) > 0 then
+    bytes, err = self.fd:write(buff, bufflen);
+    --print("async_write(), bytes: ", bytes, err)
+    return bytes, err;
+  end
+
+  return bytes, err;
+end
+
+exports.AsyncSocket = AsyncSocket;
 
 -- the bsdsocket type gives us a garbage collectible
 -- place to stick the file descriptor associated with
@@ -345,9 +548,6 @@ local bsdsocket_mt = {
         end
 
         local obj = ffi.new(ct, s);
-        -- register the socket to be watched by
-        -- epoll, before returning
-        --epoll:watch(s);
 
         return obj;
     end;
@@ -414,6 +614,12 @@ local bsdsocket_mt = {
             return self:setSocketOption(SOL_SOCKET, SO_REUSEADDR, on);
         end,
 
+        getLastError = function(self)
+            local retVal = ffi.new("int[1]")
+            local retValLen = ffi.new("int[1]", ffi.sizeof("int"))
+
+            local ret = self:getSocketOption(SOL_SOCKET, SO_ERROR, retVal, retValLen)
+        end,
     };
 }
 ffi.metatype(bsdsocket, bsdsocket_mt);

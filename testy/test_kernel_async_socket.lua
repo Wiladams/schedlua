@@ -12,9 +12,8 @@ local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 
 local Kernel = require("kernel"){exportglobal = true};
-local epoll = require("epoll")()
-local asyncio = require("asyncio")
-asyncio{Kernel = Kernel, exportglobal = true, AutoStart=true}
+local epoll = require("epoll"){exportglobal=true}
+local asyncio = require("asyncio"){Kernel = Kernel, exportglobal = true}
 
 local net = require("linux_net"){exportglobal=true}
 local errnos = require("linux_errno"){exportglobal=true}
