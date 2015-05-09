@@ -100,7 +100,7 @@ function AsyncIO.watchdog(self)
 				local sigName = "waitforio-"..self.Events[idx].data.fd;
 
 				-- signal anyone waiting for it
-				self.Kernel:signalAll(sigName);
+				self.Kernel:signalAll(sigName, self.Events[idx].events);
 		end
 
 		self.Kernel:yield();

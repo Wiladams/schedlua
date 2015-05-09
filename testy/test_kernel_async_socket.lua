@@ -11,8 +11,6 @@ local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 
-
-
 local Kernel = require("kernel"){makeGlobal = true};
 local epoll = require("epoll")()
 local asyncio = require("asyncio")
@@ -38,10 +36,10 @@ local function async_connect(sock, sa)
 	--
   	--print("async_connect(), 2.0")
 	local event = ffi.new("struct epoll_event")
-	event.data.fd = sock.sockfd;
+	event.data.fd = sock.fd;
   	event.events = bor(EPOLLOUT,EPOLLRDHUP, EPOLLERR, EPOLLET); -- EPOLLET
 
-	local success, err = asyncio:waitForIOEvent(sock.sockfd, event);
+	local success, err = asyncio:waitForIOEvent(sock.fd, event);
 
   	--print("async_connect(), 3.0: ", success, err)
 
@@ -50,24 +48,40 @@ end
 
 local function async_read(sock, buff, bufflen)
 	local event = ffi.new("struct epoll_event")
-	event.data.fd = sock.sockfd;
+	event.data.fd = sock.fd;
 	event.events = bor(EPOLLIN,EPOLLRDHUP, EPOLLERR); 
 
-	local success, err = asyncio:waitForIOEvent(sock.sockfd, event);
---[[
-	if not success then
-		return false, err;
-	end
---]]
+	local success, err = asyncio:waitForIOEvent(sock.fd, event);
+	--print(string.format("async_read, after wait: 0x%x %s", success, tostring(err)))
+
 	local bytesRead = 0;
 
-	--if band(success, EPOLLIN) > 0 then
+	if band(success, EPOLLIN) > 0 then
 		bytesRead, err = sock:read(buff, bufflen);
 		--print("async_read(), bytes read: ", bytesRead, err)
-	--	return bytesRead, err;
-	--end
+		return bytesRead, err;
+	end
 
 	return bytesRead, err;
+end
+
+local function async_write(sock, buff, bufflen)
+	local event = ffi.new("struct epoll_event")
+	event.data.fd = sock.fd;
+	event.events = bor(EPOLLOUT,EPOLLRDHUP, EPOLLERR); 
+
+	local success, err = asyncio:waitForIOEvent(sock.fd, event);
+	--print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
+
+	local bytes = 0;
+
+	if band(success, EPOLLOUT) > 0 then
+		bytes, err = sock:write(buff, bufflen);
+		--print("async_write(), bytes: ", bytes, err)
+		return bytes, err;
+	end
+
+	return bytes, err;
 end
 
 
@@ -81,14 +95,16 @@ local function main()
 	s:setNonBlocking(true);
 
 	-- add the socket to the epoll set to be watched
- 	local success, err = asyncio:watchForIOEvents(s.sockfd);
-	--print("main(), watchForIO", success, err);
+ 	local success, err = asyncio:watchForIOEvents(s.fd);
 
  	-- connect the socket to the server
  	-- we could get WOULDBLOCK, or EAGAIN
 	local sa, err = net.sockaddr_in(server_address, server_port);
 	success, err = async_connect(s, sa)
 
+	if not success then
+		return false, err
+	end
 
 
 	local BUFSIZ = 512;

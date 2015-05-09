@@ -329,7 +329,7 @@ exports.sockaddr_in = sockaddr_in;
 ffi.cdef[[
 typedef struct bsdsocket_t
 {
-  int sockfd;
+  int fd;
 } bsdsocket;
 ]]
 
@@ -353,25 +353,25 @@ local bsdsocket_mt = {
     end;
 
     __gc = function(self)
-        if self.sockfd > -1 then
+        if self.fd > -1 then
             self:close();
         end
     end;
 
     __index = {
         close = function(self)
-            ffi.C.close(self.sockfd);
-            self.sockfd = -1; -- make it invalid
+            ffi.C.close(self.fd);
+            self.fd = -1; -- make it invalid
         end,
 
         read = function(self, buff, bufflen)
-            local bytesRead = tonumber(ffi.C.read(self.sockfd, buff, bufflen));
+            local bytes = tonumber(ffi.C.read(self.fd, buff, bufflen));
 
-            if bytesRead > 0 then
-                return bytesRead;
+            if bytes > 0 then
+                return bytes;
             end
 
-            if bytesRead == 0 then
+            if bytes == 0 then
               return 0;
             end
 
@@ -379,19 +379,30 @@ local bsdsocket_mt = {
         end,
 
         write = function(self, buff, len)
+            local bytes = tonumber(ffi.C.write(self.fd, buff, bufflen));
+
+            if bytes > 0 then
+                return bytes;
+            end
+
+            if bytes == 0 then
+              return 0;
+            end
+
+            return false, ffi.errno();
         end,
 
         setSocketOption = function(self, level, optname, on)
             local feature_on = ffi.new("int[1]")
             if on then feature_on[0] = 1; end
-            local ret = ffi.C.setsockopt(self.sockfd, level, optname, feature_on, ffi.sizeof("int"))
+            local ret = ffi.C.setsockopt(self.fd, level, optname, feature_on, ffi.sizeof("int"))
             return ret == 0;
         end,
 
         setNonBlocking = function(self)
             local FIONBIO=0x5421;
             local feature_on = ffi.new("int[1]",1)
-            local ret = ffi.C.ioctl(self.sockfd, FIONBIO, feature_on)
+            local ret = ffi.C.ioctl(self.fd, FIONBIO, feature_on)
             return ret == 0;
         end,
 
@@ -411,13 +422,14 @@ exports.bsdsocket = bsdsocket;
 
 
 function exports.connect(s, sa)
-  local ret = tonumber(ffi.C.connect(s.sockfd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));
+  local ret = tonumber(ffi.C.connect(s.fd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));
   if ret ~= 0 then
     return false, ffi.errno();
   end
 
   return true;
 end
+
 
 setmetatable(exports, {
 	__call = function(self, params)

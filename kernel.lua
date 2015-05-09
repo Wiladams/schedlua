@@ -96,7 +96,7 @@ function Kernel.signalOne(self, eventName, ...)
 	local suspended = self.TasksSuspendedForSignal[eventName][1];
 	--print("suspended: ", suspended, suspended.routine);
 
-	self.Scheduler:scheduleTask(suspended);
+	self.Scheduler:scheduleTask(suspended,{...});
 	table.remove(self.TasksSuspendedForSignal[eventName], 1);
 	-- TODO
 	-- if the table for the signal now has zero entries
@@ -118,7 +118,7 @@ function Kernel.signalAll(self, eventName, ...)
 	end
 
 	for i=1,nTasks do
-		self.Scheduler:scheduleTask(self.TasksSuspendedForSignal[eventName][1]);
+		self.Scheduler:scheduleTask(self.TasksSuspendedForSignal[eventName][1],{...});
 		table.remove(self.TasksSuspendedForSignal[eventName], 1);
 	end
 

@@ -10,16 +10,16 @@ local exports = {}
 	Things related to epoll
 --]]
 
-exports.EPOLLIN 	= 0x001;
-exports.EPOLLPRI 	= 0x002;
-exports.EPOLLOUT 	= 0x004;
-exports.EPOLLRDNORM = 0x040;			-- SAME AS EPOLLIN
-exports.EPOLLRDBAND = 0x080;
-exports.EPOLLWRNORM = 0x100;			-- SAME AS EPOLLOUT
-exports.EPOLLWRBAND = 0x200;
-exports.EPOLLMSG	= 0x400;			-- NOT USED
-exports.EPOLLERR 	= 0x008;
-exports.EPOLLHUP 	= 0x010;
+exports.EPOLLIN 	= 0x0001;
+exports.EPOLLPRI 	= 0x0002;
+exports.EPOLLOUT 	= 0x0004;
+exports.EPOLLRDNORM = 0x0040;			-- SAME AS EPOLLIN
+exports.EPOLLRDBAND = 0x0080;
+exports.EPOLLWRNORM = 0x0100;			-- SAME AS EPOLLOUT
+exports.EPOLLWRBAND = 0x0200;
+exports.EPOLLMSG	= 0x0400;			-- NOT USED
+exports.EPOLLERR 	= 0x0008;
+exports.EPOLLHUP 	= 0x0010;
 exports.EPOLLRDHUP 	= 0x2000;
 exports.EPOLLWAKEUP = lshift(1,29);
 exports.EPOLLONESHOT = lshift(1,30);
