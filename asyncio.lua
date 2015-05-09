@@ -1,5 +1,4 @@
 -- asyncio.lua
-package.path = package.path..";../?.lua"
 
 if AsyncIO_Included then
 	return AsyncIO;
@@ -20,7 +19,7 @@ local AsyncIO = {
 	EventQuanta = 10;
 	ContinueRunning = true;
 	EPollSet = epoll.epollset();
-	MaxEvents = 10;		-- number of events we'll ask per quanta
+	MaxEvents = 100;		-- number of events we'll ask per quanta
 }
 
 setmetatable(AsyncIO, {
@@ -62,44 +61,29 @@ function AsyncIO.watchForIOEvents(self, fd)
 end
 
 function AsyncIO.waitForIOEvent(self, fd, event)
---print("== waitForIO.yield: BEGIN: ", arch.pointerToString(overlapped));
-	-- assuming the fd has already been added to 
-	-- the epoll set, modify it to match the new
-	-- event
 	local success, err = self.EPollSet:modify(fd, event);
-	--print("ASyncIO.waitForIOEvent(), modify: ", success, err)
-	-- create a signal which the current task can be put 
-	-- to watch
-
-	-- This assumes that the watchdog will catch when the event
-	-- occurs, and fire off the signal	
 	local sigName = "waitforio-"..fd;
 
 	success, err = self.Kernel:waitForSignal(sigName);
-	--print("ASyncIO.waitForIOEvent(), after waitforsignal: ", sigName, success, err)
 
 	return success, err;
 end
 
 
-
-
+-- The watchdog() routine is the regular task that will
+-- always be calling epoll_wait when it gets a chance
+-- and signaling the appropriate tasks when they have events
 function AsyncIO.watchdog(self)
 	while self.ContinueRunning do
 		local success, err = self.EPollSet:wait(self.Events, self.MaxEvents, self.EventQuanta);
-
-		--print("watchdog waited: ", success, err);
 
 		if not success then 
 			return false, err;
 		end
 
-		-- we got some number of events, so process them
 		for idx=0,success-1 do
 				-- create signal name
 				local sigName = "waitforio-"..self.Events[idx].data.fd;
-
-				-- signal anyone waiting for it
 				self.Kernel:signalAll(sigName, self.Events[idx].events);
 		end
 

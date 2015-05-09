@@ -2,7 +2,7 @@
 package.path = package.path..";../?.lua"
 
 local Functor = require("functor")
-local Kernel = require("kernel"){makeGlobal = true}
+local Kernel = require("kernel"){exportglobal = true}
 local Predicate = require("predicate")(Kernel, true)
 
 local idx = 0;

@@ -1,7 +1,7 @@
 --test_scheduler.lua
 package.path = package.path..";../?.lua"
 
-local Kernel = require("kernel"){makeGlobal = true}
+local Kernel = require("kernel"){exportglobal = true}
 local Functor = require("functor")
 
 local function numbers(ending)

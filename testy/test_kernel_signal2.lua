@@ -1,6 +1,6 @@
 package.path = package.path.."';../?.lua"
 
-local kernel = require("kernel"){makeGlobal=true}
+local kernel = require("kernel"){exportglobal=true}
 local alarm = require("alarm")(kernel,true);
 
 local function waiter(num)

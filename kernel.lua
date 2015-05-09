@@ -8,7 +8,7 @@ end
 
 local Kernel_Included = true;
 
-local Scheduler = require("scheduler")()
+local Scheduler = require("scheduler")
 local Task = require("task")
 local Queue = require("queue")
 local Functor = require("functor")
@@ -22,18 +22,14 @@ local Kernel = {
 
 setmetatable(Kernel, {
     __call = function(self, params)
-    	params = params or {
-    		makeGlobal = false;
-    		scheduler = Scheduler;
-    	}
-
-    	if params.makeGlobal then
+    	params = params or {}
+    	params.Scheduler = params.Scheduler or Scheduler();
+    	
+    	if params.exportglobal then
     		self:globalize();
     	end
 
-    	if params.scheduler then 
-    		self.Scheduler = params.scheduler;
-    	end
+    	self.Scheduler = params.Scheduler;
 
     	return self;
     end,

@@ -11,7 +11,7 @@ local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 
-local Kernel = require("kernel"){makeGlobal = true};
+local Kernel = require("kernel"){exportglobal = true};
 local epoll = require("epoll")()
 local asyncio = require("asyncio")
 asyncio{Kernel = Kernel, exportglobal = true, AutoStart=true}
