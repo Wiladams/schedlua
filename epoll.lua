@@ -95,14 +95,31 @@ local epollset_mt = {
 	__index = {
 		add = function(self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_ADD, fd, event)
+
+			if ret > -1 then
+				return ret;
+			end
+
+			return false, ffi.errno();
 		end,
 
 		delete = function(self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_DEL, fd, event)
+
+			if ret > -1 then
+				return ret;
+			end
+
+			return false, ffi.errno();
 		end,
 
 		modify = function(self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_MOD, fd, event)
+			if ret > -1 then
+				return ret;
+			end
+
+			return false, ffi.errno();
 		end,
 
 		-- struct epoll_event *__events

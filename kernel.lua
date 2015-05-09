@@ -30,6 +30,7 @@ setmetatable(Kernel, {
     	if params.makeGlobal then
     		self:globalize();
     	end
+
     	if params.scheduler then 
     		self.Scheduler = params.scheduler;
     	end
@@ -45,7 +46,7 @@ end
 
 function Kernel.getCurrentTaskID(self)
 	return self:getCurrentTask().TaskID;
-nd
+end
 
 function Kernel.getCurrentTask(self)
 	return self.Scheduler:getCurrentTask();
@@ -82,7 +83,7 @@ end
 	but it's so fundamental to this kernel that it makes more sense
 	to stick in in here.
 --]]
-function Kernel.signalOne(self, eventName)
+function Kernel.signalOne(self, eventName, ...)
 	if not self.TasksSuspendedForSignal[eventName] then
 		return false, "event not registered", eventName
 	end
@@ -106,7 +107,7 @@ function Kernel.signalOne(self, eventName)
 	return true;
 end
 
-function Kernel.signalAll(self, eventName)
+function Kernel.signalAll(self, eventName, ...)
 	if not self.TasksSuspendedForSignal[eventName] then
 		return false, "event not registered"
 	end
@@ -125,7 +126,7 @@ function Kernel.signalAll(self, eventName)
 end
 
 function Kernel.waitForSignal(self, eventName)
-	local currentFiber = self.Scheduler:getCurrentFiber();
+	local currentFiber = self.Scheduler:getCurrentTask();
 
 	--print("waitForEvent.yield: ", eventName, currentFiber)
 

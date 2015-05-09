@@ -1,12 +1,13 @@
 -- errno-base.h
 -- Database of error codes for Linux
 local exports = {}
+
 setmetatable(exports, {
 	__call = function(self, params)
 		params = params or {}
 		if params.exportglobal then
 			for k,v in pairs(exports.errnos) do
-				_G[k] = value;
+				_G[k] = v;
 			end
 		end
 		return self;
@@ -14,7 +15,7 @@ setmetatable(exports, {
 })
 
 
-local exports.errnos {
+exports.errnos = {
     EPERM =  1;  -- Operation not permitted 
     ENOENT =  2;  -- No such file or directory 
     ESRCH =  3;  -- No such process 
@@ -166,7 +167,7 @@ function exports.lookuperrno(errorNumber)
 
 	end
 
-	return "UNKNOWN ERROR: "..errorNumber;
+	return "UNKNOWN ERROR: "..tostring(errorNumber);
 end
 
 return exports;
