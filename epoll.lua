@@ -13,11 +13,11 @@ local exports = {}
 exports.EPOLLIN 	= 0x001;
 exports.EPOLLPRI 	= 0x002;
 exports.EPOLLOUT 	= 0x004;
-exports.EPOLLRDNORM = 0x040;
+exports.EPOLLRDNORM = 0x040;			-- SAME AS EPOLLIN
 exports.EPOLLRDBAND = 0x080;
-exports.EPOLLWRNORM = 0x100;
+exports.EPOLLWRNORM = 0x100;			-- SAME AS EPOLLOUT
 exports.EPOLLWRBAND = 0x200;
-exports.EPOLLMSG	= 0x400;
+exports.EPOLLMSG	= 0x400;			-- NOT USED
 exports.EPOLLERR 	= 0x008;
 exports.EPOLLHUP 	= 0x010;
 exports.EPOLLRDHUP 	= 0x2000;
@@ -101,7 +101,7 @@ local epollset_mt = {
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_DEL, fd, event)
 		end,
 
-		modify = function(self, fd)
+		modify = function(self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_MOD, fd, event)
 		end,
 
@@ -110,7 +110,14 @@ local epollset_mt = {
 			maxevents = maxevents or 1
 			timeout = timeout or 0
 
+			-- gets either number of ready events
+			-- or -1 indicating an error
 			local ret = ffi.C.epoll_wait (self.epfd, events, maxevents, timeout);
+			if ret == -1 then
+				return false, ffi.errno();
+			end
+
+			return ret;
 		end,
 	};
 }
@@ -124,6 +131,8 @@ setmetatable(exports, {
 		for k,v in pairs(exports) do
 			_G[k] = v;
 		end
+
+		return self;
 	end;
 })
 

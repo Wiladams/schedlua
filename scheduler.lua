@@ -85,7 +85,7 @@ function Scheduler.inMainFiber(self)
 	return coroutine.running() == nil; 
 end
 
-function Scheduler.getCurrentFiber(self)
+function Scheduler.getCurrentTask(self)
 	return self.CurrentFiber;
 end
 

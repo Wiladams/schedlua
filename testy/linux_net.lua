@@ -97,8 +97,10 @@ struct udphdr {
 ]]
 
 ffi.cdef[[
-int fcntl (int __fd, int __cmd, ...);
 int close(int fd);
+int fcntl (int __fd, int __cmd, ...);
+int ioctl (int __fd, unsigned long int __request, ...);
+
 ssize_t read(int fd, void *buf, size_t count);
 ssize_t write(int fd, const void *buf, size_t count);
 ]]
@@ -386,7 +388,7 @@ local bsdsocket_mt = {
             return ret == 0;
         end,
 
-        setNonblocking = function(self)
+        setNonBlocking = function(self)
             local FIONBIO=0x5421;
             local feature_on = ffi.new("int[1]",1)
             local ret = ffi.C.ioctl(self.sockfd, FIONBIO, feature_on)

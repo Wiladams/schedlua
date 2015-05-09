@@ -12,7 +12,7 @@ local function main()
 	local fd = select(127.0.0.1)
 
 	local evdata = ffi.new("struct epoll_event")
-	evdata.events = 1;
+	evdata.events = EPOLLIN;
 	evdata.data.fd = fd;
 
 	set1:add(fd, evdata)

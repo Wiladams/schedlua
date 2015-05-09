@@ -1,4 +1,7 @@
-
+--kernel.lua
+-- kernel is a singleton, so return
+-- single instance if we've already been
+-- through this code
 if Kernel_Included then
 	return Kernel;
 end
@@ -17,6 +20,23 @@ local Kernel = {
 	TasksSuspendedForSignal = {};
 }
 
+setmetatable(Kernel, {
+    __call = function(self, params)
+    	params = params or {
+    		makeGlobal = false;
+    		scheduler = Scheduler;
+    	}
+
+    	if params.makeGlobal then
+    		self:globalize();
+    	end
+    	if params.scheduler then 
+    		self.Scheduler = params.scheduler;
+    	end
+
+    	return self;
+    end,
+})
 
 function Kernel.getNewTaskID(self)
 	self.TaskID = self.TaskID + 1;
@@ -24,7 +44,11 @@ function Kernel.getNewTaskID(self)
 end
 
 function Kernel.getCurrentTaskID(self)
-	return self.Scheduler:getCurrentFiber().TaskID;
+	return self:getCurrentTask().TaskID;
+nd
+
+function Kernel.getCurrentTask(self)
+	return self.Scheduler:getCurrentTask();
 end
 
 function Kernel.spawn(self, func, ...)
@@ -128,9 +152,6 @@ function Kernel.onSignal(self, func, eventName)
 	return self:spawn(closure)
 end
 
---[[
-	Primary Activation
---]]
 
 
 function Kernel.run(self, func, ...)
@@ -148,16 +169,10 @@ function Kernel.run(self, func, ...)
 	while (self.ContinueRunning) do
 		self.Scheduler:step();
 		
-		-- automatically stop the kernel if there are no tasks ready to run
-		-- and no tasks suspended waiting for a signal
-		if self.Scheduler:tasksPending() < 1 then
-			-- TODO - check the length of the dictionaries
-			-- very expensive
-			--if self.TasksSuspendedForSignal:length() < 1 then
-			--	break;
-			--end
-			break;
-		end
+		-- This would be a convenient place to put logic
+		-- to stop the kernel based on some set of criteria
+		-- A predicate could be used, with the 'halt()' as well,
+		-- keeping the kernel code fairly clean
 	end
 end
 
@@ -165,12 +180,6 @@ function Kernel.halt(self)
 	self.ContinueRunning = false;
 end
 
--- set a metatable on the Kernel table so that all the functions
--- can be put into the global namespace by simply calling Kernel()
---
--- we don't make them global automatically, because not every application
--- will want that behavior.  This way, the app writer can decide if they 
--- want the global namespace polluted or not.
 function Kernel.globalize()
 	halt = Functor(Kernel.halt, Kernel);
     onSignal = Functor(Kernel.onSignal, Kernel);
@@ -188,22 +197,6 @@ function Kernel.globalize()
     yield = Functor(Kernel.yield, Kernel);
 end
 
-setmetatable(Kernel, {
-    __call = function(self, params)
-    	params = params or {
-    		makeGlobal = false;
-    		scheduler = Scheduler;
-    	}
 
-    	if params.makeGlobal then
-    		self:globalize();
-    	end
-    	if params.scheduler then 
-    		self.Scheduler = params.scheduler;
-    	end
 
-    	return self;
-    end,
-})
-
-return Kernel();
+return Kernel;
