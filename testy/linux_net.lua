@@ -422,7 +422,7 @@ end
 setmetatable(exports, {
 	__call = function(self, params)
 		params = params or {}
-		if params.importglobal then
+		if params.exportglobal then
 			for k,v in pairs(exports) do
 				_G[k] = v;
 			end

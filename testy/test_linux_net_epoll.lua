@@ -10,8 +10,8 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local net = require("linux_net"){importglobal=true}
-local errnos = require("linux_errno")
+local net = require("linux_net"){exportglobal=true}
+local errnos = require("linux_errno"){exportglobal=true}
 
 local server_address = "127.0.0.1"
 local server_port = 13;
@@ -83,7 +83,7 @@ local function main()
 					local str = ffi.string(buffer, bytesRead);
 					io.write(str);
 				else
-					if err ~= errnos.EWOULDBLOCK then
+					if err ~= EWOULDBLOCK then
 						print("read, error: ", err)
 						return false, err;
 					end
