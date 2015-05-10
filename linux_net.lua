@@ -377,7 +377,7 @@ local filedesc_mt = {
             return false, ffi.errno();
         end,
 
-        write = function(self, buff, len)
+        write = function(self, buff, bufflen)
             local bytes = tonumber(ffi.C.write(self.fd, buff, bufflen));
 
             if bytes > 0 then
@@ -448,7 +448,7 @@ AsyncSocket.setUseKeepAlive = function(self, on)
     return self:setSocketOption(exports.SO_KEEPALIVE, on);
 end
 
-AsyncSocket.setReuseAddress = function(self, on)
+function AsyncSocket.setReuseAddress(self, on)
     return self:setSocketOption(exports.SO_REUSEADDR, on);
 end
 
@@ -491,7 +491,7 @@ function AsyncSocket.read(self, buff, bufflen)
   event.events = bor(epoll.EPOLLIN,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
 
   local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
-  --print(string.format("async_read, after wait: 0x%x %s", success, tostring(err)))
+  --print(string.format("AsyncSocket.read(), after wait: 0x%x %s", success, tostring(err)))
 
   local bytesRead = 0;
 
@@ -501,12 +501,15 @@ function AsyncSocket.read(self, buff, bufflen)
     return bytesRead, err;
   end
 
+    bytesRead, err = self.fd:read(buff, bufflen);
+    --print("async_read(), bytes read: ", bytesRead, err)
+
   return bytesRead, err;
 end
 
 function AsyncSocket.write(self, buff, bufflen)
   local event = ffi.new("struct epoll_event")
-  event.data.fd = sock.fd;
+  event.data.fd = self.fd.fd;
   event.events = bor(epoll.EPOLLOUT,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
 
   local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
