@@ -13,7 +13,7 @@ local function twoSeconds()
 end
 
 local function test_alarm_delay()
-
+	print("delay(twoSeconds, 2000");
 	Alarm:delay(twoSeconds, 2000);
 end
 

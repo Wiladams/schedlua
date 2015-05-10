@@ -32,6 +32,7 @@ local function counter(name, nCount)
 		print(name, num);
 		yield();
 	end
+	halt();
 end
 
 local function main()
