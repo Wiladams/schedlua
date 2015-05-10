@@ -2,28 +2,24 @@
 -- kernel is a singleton, so return
 -- single instance if we've already been
 -- through this code
-if Kernel_Included then
-	return Kernel;
-end
-
-local Kernel_Included = true;
+print("== KERNEL INCLUDED ==")
 
 local Scheduler = require("scheduler")
 local Task = require("task")
-local Queue = require("queue")
+--local Queue = require("queue")
 local Functor = require("functor")
 
 local Kernel = {
 	ContinueRunning = true;
 	TaskID = 0;
-	Scheduler = Scheduler;
+	Scheduler = Scheduler();
 	TasksSuspendedForSignal = {};
 }
 
 setmetatable(Kernel, {
     __call = function(self, params)
     	params = params or {}
-    	params.Scheduler = params.Scheduler or Scheduler();
+    	params.Scheduler = params.Scheduler or self.Scheduler
     	
     	if params.exportglobal then
     		self:globalize();
@@ -63,22 +59,9 @@ end
 
 function Kernel.yield(self, ...)
 	return self.Scheduler:yield();
-	--return coroutine.yield(...);
 end
 
---[[
-	Signal Related Functions
 
-	Signaling is a fundamental building block for other forms
-	of yielding in the kernel.  These routines are here because
-	of their building block nature.  A task can end up waiting on 
-	many different forms of signals, such as time, a predicate, IO,
-	or just a general event or coordination barrier.
-
-	Signaling could also be implemented as a separable plugin task,
-	but it's so fundamental to this kernel that it makes more sense
-	to stick in in here.
---]]
 function Kernel.signalOne(self, eventName, ...)
 	if not self.TasksSuspendedForSignal[eventName] then
 		return false, "event not registered", eventName
@@ -90,15 +73,9 @@ function Kernel.signalOne(self, eventName, ...)
 	end
 
 	local suspended = self.TasksSuspendedForSignal[eventName][1];
-	--print("suspended: ", suspended, suspended.routine);
 
 	self.Scheduler:scheduleTask(suspended,{...});
 	table.remove(self.TasksSuspendedForSignal[eventName], 1);
-	-- TODO
-	-- if the table for the signal now has zero entries
-	-- we can probably remove the table to free up some space
-	-- otherwise, we'll have an increasing amount of garbage for
-	-- one off signals, especially in the case of high frequency IO
 
 	return true;
 end
@@ -124,13 +101,10 @@ end
 function Kernel.waitForSignal(self, eventName)
 	local currentFiber = self.Scheduler:getCurrentTask();
 
-	--print("waitForEvent.yield: ", eventName, currentFiber)
-
 	if currentFiber == nil then
 		return false, "not currently in a running task"
 	end
 
-	-- add the fiber to the list of suspended tasks
 	if not self.TasksSuspendedForSignal[eventName] then
 		self.TasksSuspendedForSignal[eventName] = {}
 	end
@@ -157,19 +131,8 @@ function Kernel.run(self, func, ...)
 		self:spawn(func, ...)
 	end
 
-	-- This is a high CPU load event loop
-	-- ideally, we'd be able to figure out when we could
-	-- actually just sleep for a bit, in an OS sense
-	-- this would tie the kernel to some OS specific notion
-	-- of notification, based on either IO or time
-	-- it could be as easy as a microsecond sleep, or yield
 	while (self.ContinueRunning) do
-		self.Scheduler:step();
-		
-		-- This would be a convenient place to put logic
-		-- to stop the kernel based on some set of criteria
-		-- A predicate could be used, with the 'halt()' as well,
-		-- keeping the kernel code fairly clean
+		self.Scheduler:step();		
 	end
 end
 
@@ -193,7 +156,5 @@ function Kernel.globalize()
 
     yield = Functor(Kernel.yield, Kernel);
 end
-
-
 
 return Kernel;

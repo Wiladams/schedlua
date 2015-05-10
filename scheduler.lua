@@ -20,7 +20,7 @@ local Task = require("task");
 local Scheduler = {}
 setmetatable(Scheduler, {
 	__call = function(self, ...)
-		return self:create(...)
+		return self:new(...)
 	end,
 })
 local Scheduler_mt = {
@@ -37,7 +37,7 @@ function Scheduler.init(self, ...)
 	return obj;
 end
 
-function Scheduler.create(self, ...)
+function Scheduler.new(self, ...)
 	return self:init(...)
 end
 
