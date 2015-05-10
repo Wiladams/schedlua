@@ -2,7 +2,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local Kernel = require("kernel")
+local Kernel = require("kernel")()
 local asyncio = require("asyncio"){Kernel = Kernel, AutoStart=true}
 local epoll = require("epoll")
 local errnos = require("linux_errno").errnos
@@ -138,6 +138,24 @@ int sendmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int
 int recvmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags, struct timespec *timeout);
 ]]
 
+ffi.cdef[[
+struct addrinfo {
+  int     ai_flags;          // AI_PASSIVE, AI_CANONNAME, ...
+  int     ai_family;         // AF_xxx
+  int     ai_socktype;       // SOCK_xxx
+  int     ai_protocol;       // 0 (auto) or IPPROTO_TCP, IPPROTO_UDP 
+
+  socklen_t  ai_addrlen;     // length of ai_addr
+  struct sockaddr  *ai_addr; // binary address
+  char   *ai_canonname;      // canonical name for nodename
+  struct addrinfo  *ai_next; // next structure in linked list
+};
+
+int getaddrinfo(const char *nodename, const char *servname,
+                const struct addrinfo *hints, struct addrinfo **res);
+
+void freeaddrinfo(struct addrinfo *ai);
+]]
 
 local exports  = {
 FIONBIO = 0x5421;
@@ -233,6 +251,19 @@ IPPROTO_SCTP        = 132;
 
 IPPROTO_RAW          =   255;             -- raw IP packet
 IPPROTO_MAX          =   256;
+
+-- Possible values for `ai_flags' field in `addrinfo' structure.
+AI_PASSIVE              = 0x0001;
+AI_CANONNAME            = 0x0002;
+AI_NUMERICHOST          = 0x0004;
+AI_V4MAPPED             = 0x0008;
+AI_ALL                  = 0x0010;
+AI_ADDRCONFIG           = 0x0020;
+AI_IDN                  = 0x0040;
+AI_CANONIDN             = 0x0080;
+AI_IDN_ALLOW_UNASSIGNED = 0x0100;
+AI_IDN_USE_STD3_ASCII_RULES = 0x0200;
+AI_NUMERICSERV          = 0x0400;
 }
 
 
@@ -324,6 +355,13 @@ local sockaddr_in_mt = {
       return sa;
   end;
 
+  __index = {
+    setPort = function(self, port)
+      self.sin_port = exports.htons(port);
+      return self;
+    end,
+  },
+
 }
 ffi.metatype(sockaddr_in, sockaddr_in_mt);
 exports.sockaddr_in = sockaddr_in;
@@ -403,6 +441,33 @@ ffi.metatype(filedesc, filedesc_mt);
 exports.filedesc = filedesc;
 
 
+
+local function lookupsite(nodename, servname)
+  --local servname = nil; -- "http"
+  local res = ffi.new("struct addrinfo * [1]")
+  local hints = ffi.new("struct addrinfo")
+
+  --hints.ai_flags = net.AI_CANONNAME;
+  hints.ai_family = exports.AF_INET;
+  hints.ai_socktype = exports.SOCK_STREAM;
+
+  local ret = ffi.C.getaddrinfo(nodename, servname, hints, res);
+--print("getaddrinfo: ", ret)
+  if ret ~= 0 then
+    return false, ret;
+  end
+
+  
+  local sa = ffi.new("struct sockaddr")
+  local addrlen = res[0].ai_addrlen;
+
+  ffi.copy(sa, res[0].ai_addr, res[0].ai_addrlen)
+
+  ffi.C.freeaddrinfo(res[0]);
+
+  return sa, addrlen
+end
+
 local AsyncSocket = {}
 setmetatable(AsyncSocket, {
     __call = function(self, ...)
@@ -461,15 +526,20 @@ function AsyncSocket.getLastError(self)
     return retVal[0];
 end
 
-function AsyncSocket.connect(self, addr, port)
-    local sa, err = sockaddr_in(addr, port);
-    local ret = tonumber(ffi.C.connect(self.fd.fd, ffi.cast("struct sockaddr *", sa), ffi.sizeof(sa)));
+function AsyncSocket.connect(self, servername, port)
+    local sa, size = lookupsite(servername);
+    if not sa then 
+        return false, size;
+    end
+    ffi.cast("struct sockaddr_in *", sa):setPort(port);
+
+    local ret = tonumber(ffi.C.connect(self.fd.fd, sa, size));
 
     local err = ffi.errno();
     if ret ~= 0 then
-      if  err ~= errnos.EINPROGRESS then
-        return false, err;
-      end
+        if  err ~= errnos.EINPROGRESS then
+            return false, err;
+        end
     end
 
     -- now wait for the socket to be writable

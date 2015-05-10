@@ -28,6 +28,7 @@ local Scheduler_mt = {
 }
 
 function Scheduler.init(self, ...)
+	print("==== Scheduler.init ====")
 	local obj = {
 		TasksReadyToRun = Queue();
 	}
@@ -99,7 +100,7 @@ function Scheduler.step(self)
 
 	-- If no fiber in ready queue, then just return
 	if task == nil then
-		print("Scheduler.step: NO TASK")
+		--print("Scheduler.step: NO TASK")
 		return true
 	end
 
