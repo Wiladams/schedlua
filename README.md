@@ -18,9 +18,9 @@ which gives no weight to one task over another.
 kernel.lua
 ==========
 Although it is possible to program against the scheduler/task combo, you're
-actually better off not doing it this way because it is so rough.  Instead, an
-application should use the module require("lua").
-luajit 
+actually better off not doing it this way because it is so rough.  Instead, an application should use the kernel module 
+local Kernel = require("kernel")
+
 
 functor.lua
 ===========
