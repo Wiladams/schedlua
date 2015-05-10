@@ -73,6 +73,8 @@ local function main()
 	local t5 = when(
 		function() return idx == 75 end, 
 		function() print("WHEN IDX == 75!!") end)
+	local t6 = when(function() return idx >= maxidx end,
+		function() halt(); end);
 
 
 end

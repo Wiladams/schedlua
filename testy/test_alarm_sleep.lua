@@ -9,17 +9,14 @@ local Clock, timespec = require("clock")
 
 local function test_alarm_sleep()
 	local s1 = Clock();
-	local starttime = s1:secondsElapsed();
-	print("Start: ", starttime)
+	local starttime = s1:reset();
+	print("sleep(7525)");
 
 	Alarm:sleep(7525);
 
-	local currenttime = s1:secondsElapsed();
-	print("End: ", currenttime)
+	local duration = s1:secondsElapsed();
 
-	local duration = currenttime - starttime;
-
-	print("Duration: ", duration, remaining);
+	print("Duration: ", duration);
 
 	halt();
 end
