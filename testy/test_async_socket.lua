@@ -15,11 +15,7 @@ local ffi = require("ffi")
 local Kernel = require("kernel");
 local AsyncSocket = require("AsyncSocket")
 
-
-local serverip = "204.79.197.200"		-- www.bing.com
-local servername = "www.bing.com"
-
-
+local servername = arg[1] or "www.bing.com"
 
 local function httpRequest(s)
 	local request = string.format("GET / HTTP/1.1\r\nUser-Agent: schedlua (linux-gnu)\r\nAccept: */*\r\nHost: %s\r\nConnection: close\r\n\r\n", servername);

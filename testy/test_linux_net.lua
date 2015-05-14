@@ -1,3 +1,4 @@
+package.path = package.path.."';../?.lua"
 --test_linux_net.lua
 --[[
 	Simple networking test case.
