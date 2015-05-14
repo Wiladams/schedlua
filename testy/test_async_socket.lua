@@ -13,7 +13,8 @@ local ffi = require("ffi")
 
 
 local Kernel = require("kernel");
-local net = require("linux_net")();
+local AsyncSocket = require("AsyncSocket")
+
 
 local serverip = "204.79.197.200"		-- www.bing.com
 local servername = "www.bing.com"
@@ -60,7 +61,7 @@ local function probeHttp(s)
 end
 
 local function main()
-	local s = net.AsyncSocket();
+	local s = AsyncSocket();
 	if not s:connect(servername, 80) then
 		print("connection error")
 		return false;

@@ -28,7 +28,7 @@ local Scheduler_mt = {
 }
 
 function Scheduler.init(self, ...)
-	print("==== Scheduler.init ====")
+	--print("==== Scheduler.init ====")
 	local obj = {
 		TasksReadyToRun = Queue();
 	}

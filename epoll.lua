@@ -48,12 +48,22 @@ typedef union epoll_data {
   uint32_t u32;
   uint64_t u64;
 } epoll_data_t;
+]]
 
+--[=[
+ffi.cdef[[
 struct epoll_event {
   uint32_t events;
   epoll_data_t data;
 };
-]]
+]]..(ffi.arch == "x64" and [[__attribute__((__packed__));]] or [[;]]))
+--]=]
+
+ffi.cdef([[
+struct epoll_event {
+int32_t events;
+epoll_data_t data;
+}]]..(ffi.arch == "x64" and [[__attribute__((__packed__));]] or [[;]]))
 
 
 
@@ -125,7 +135,7 @@ local epollset_mt = {
 		-- struct epoll_event *__events
 		wait = function(self, events, maxevents, timeout)
 			maxevents = maxevents or 1
-			timeout = timeout or 0
+			timeout = timeout or -1
 
 			-- gets either number of ready events
 			-- or -1 indicating an error

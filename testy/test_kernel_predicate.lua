@@ -35,9 +35,6 @@ local function counter(name, nCount)
 	signalAll(name..'-finished')
 end
 
---local function greaterThan(num)
---	return idx > num
---end
 
 local function predCount(num)
 	waitForPredicate(function() return idx > num end)

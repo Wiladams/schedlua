@@ -376,15 +376,22 @@ exports.sockaddr_in = sockaddr_in;
 ffi.cdef[[
 typedef struct filedesc_t {
   int fd;
-  struct epoll_event;
 } filedesc;
+
+typedef struct async_ioevent_t {
+  struct filedesc_t fdesc;
+  int eventKind;
+} async_ioevent;
 ]]
+
+exports.IO_READ = 1;
+exports.IO_WRITE = 2;
+exports.IO_CONNECT = 3;
+
 local filedesc = ffi.typeof("struct filedesc_t")
 local filedesc_mt = {
     __new = function(ct, fd)
         local obj = ffi.new(ct, fd);
-        obj:setNonBlocking(true);
-        asyncio:watchForIOEvents(fd);
 
         return obj;
     end;
@@ -442,166 +449,13 @@ exports.filedesc = filedesc;
 
 
 
-local function lookupsite(nodename, servname)
-  --local servname = nil; -- "http"
-  local res = ffi.new("struct addrinfo * [1]")
-  local hints = ffi.new("struct addrinfo")
 
-  --hints.ai_flags = net.AI_CANONNAME;
-  hints.ai_family = exports.AF_INET;
-  hints.ai_socktype = exports.SOCK_STREAM;
-
-  local ret = ffi.C.getaddrinfo(nodename, servname, hints, res);
---print("getaddrinfo: ", ret)
-  if ret ~= 0 then
-    return false, ret;
-  end
-
-  
-  local sa = ffi.new("struct sockaddr")
-  local addrlen = res[0].ai_addrlen;
-
-  ffi.copy(sa, res[0].ai_addr, res[0].ai_addrlen)
-
-  ffi.C.freeaddrinfo(res[0]);
-
-  return sa, addrlen
-end
-
-local AsyncSocket = {}
-setmetatable(AsyncSocket, {
-    __call = function(self, ...)
-        return self:new(...);
-    end,
-})
-
-local AsyncSocket_mt = {
-    __index = AsyncSocket;
-}
-
-function AsyncSocket.init(self, sock)
-    local obj = {
-        fd = filedesc(sock);
-    }
-    setmetatable(obj, AsyncSocket_mt);
-
-    return obj;
-end
-
-function AsyncSocket.new(self, kind, flags, family)
-    kind = kind or exports.SOCK_STREAM;
-    family = family or exports.AF_INET
-    flags = flags or 0;
-    local s = ffi.C.socket(family, kind, flags);
-    if s < 0 then
-        return nil, ffi.errno();
-    end
-
-    return self:init(s);
-end
-
-AsyncSocket.setSocketOption = function(self, optname, on, level)
-    local feature_on = ffi.new("int[1]")
-    if on then feature_on[0] = 1; end
-    level = level or exports.SOL_SOCKET 
-
-    local ret = ffi.C.setsockopt(self.fd.fd, level, optname, feature_on, ffi.sizeof("int"))
-    return ret == 0;
-end
-
-AsyncSocket.setUseKeepAlive = function(self, on)
-    return self:setSocketOption(exports.SO_KEEPALIVE, on);
-end
-
-function AsyncSocket.setReuseAddress(self, on)
-    return self:setSocketOption(exports.SO_REUSEADDR, on);
-end
-
-function AsyncSocket.getLastError(self)
-    local retVal = ffi.new("int[1]")
-    local retValLen = ffi.new("int[1]", ffi.sizeof("int"))
-
-    local ret = self:getSocketOption(exports.SO_ERROR, retVal, retValLen)
-
-    return retVal[0];
-end
-
-function AsyncSocket.connect(self, servername, port)
-    local sa, size = lookupsite(servername);
-    if not sa then 
-        return false, size;
-    end
-    ffi.cast("struct sockaddr_in *", sa):setPort(port);
-
-    local ret = tonumber(ffi.C.connect(self.fd.fd, sa, size));
-
-    local err = ffi.errno();
-    if ret ~= 0 then
-        if  err ~= errnos.EINPROGRESS then
-            return false, err;
-        end
-    end
-
-    -- now wait for the socket to be writable
-    --
-    local event = ffi.new("struct epoll_event")
-    event.data.fd = self.fd.fd;
-    event.events = bor(epoll.EPOLLOUT,epoll.EPOLLRDHUP, epoll.EPOLLERR, epoll.EPOLLET); -- EPOLLET
-
-    local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
-
-    --print("async_connect(), 3.0: ", success, err)
-
-    return success, err;
-end
-
-function AsyncSocket.read(self, buff, bufflen)
-  local event = ffi.new("struct epoll_event")
-  event.data.fd = self.fd.fd;
-  event.events = bor(epoll.EPOLLIN,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
-
-  local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
-  --print(string.format("AsyncSocket.read(), after wait: 0x%x %s", success, tostring(err)))
-
-  local bytesRead = 0;
-
-  if band(success, epoll.EPOLLIN) > 0 then
-    bytesRead, err = self.fd:read(buff, bufflen);
-    --print("async_read(), bytes read: ", bytesRead, err)
-    return bytesRead, err;
-  end
-
-    bytesRead, err = self.fd:read(buff, bufflen);
-    --print("async_read(), bytes read: ", bytesRead, err)
-
-  return bytesRead, err;
-end
-
-function AsyncSocket.write(self, buff, bufflen)
-  local event = ffi.new("struct epoll_event")
-  event.data.fd = self.fd.fd;
-  event.events = bor(epoll.EPOLLOUT,epoll.EPOLLRDHUP, epoll.EPOLLERR); 
-
-  local success, err = asyncio:waitForIOEvent(self.fd.fd, event);
-  --print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
-
-  local bytes = 0;
-
-  if band(success, epoll.EPOLLOUT) > 0 then
-    bytes, err = self.fd:write(buff, bufflen);
-    --print("async_write(), bytes: ", bytes, err)
-    return bytes, err;
-  end
-
-  return bytes, err;
-end
-
-exports.AsyncSocket = AsyncSocket;
 
 -- the bsdsocket type gives us a garbage collectible
 -- place to stick the file descriptor associated with
 -- a socket.  Also, the metatable gives a place to 
 -- implement fairly esoteric socket related functions.
+--[=[
 ffi.cdef[[
 typedef struct bsdsocket_t
 {
@@ -708,15 +562,19 @@ function exports.connect(s, sa)
 
   return true;
 end
+--]=]
 
+function exports.globalize()
+      for k,v in pairs(exports) do
+        _G[k] = v;
+      end
+end
 
 setmetatable(exports, {
 	__call = function(self, params)
 		params = params or {}
 		if params.exportglobal then
-			for k,v in pairs(exports) do
-				_G[k] = v;
-			end
+      exports.globalize();
 		end
     return self;
 	end,

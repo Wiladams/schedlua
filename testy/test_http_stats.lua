@@ -15,31 +15,29 @@ local Kernel = require("kernel")();
 local net = require("linux_net")();
 local sites = require("sites");
 local alarm = require("alarm")(Kernel)
---local asyncio = require("asyncio")
 
-local AsyncSocket = require("AsyncSocket")
-
---asyncio:setEventQuanta(1000);
+local probes = {}
 
 
 local function httpRequest(s, sitename)
 	local request = string.format("GET / HTTP/1.1\r\nUser-Agent: schedlua (linux-gnu)\r\nAccept: */*\r\nHost: %s\r\nConnection: close\r\n\r\n", sitename);
 	
+	print("==== httpRequest ====")
+	io.write(request)
 
 	local success, err = s:write(request, #request);
-	print("==== httpRequest(), WRITE: ", success, err);
-	io.write(request)
+	print("RETURN: ", success, err);
 	print("---------------------");
 
 	return success, err;
 end
 
-
 local function httpResponse(s)
-	local bytesRead = 0
-	local err = nil;
 	local BUFSIZ = 512;
 	local buffer = ffi.new("char[512+1]");
+	local bytesRead = 0
+	local err = nil;
+	local cumulative = 0
 
 
 	-- Now that the socket is ready, we can wait for it to 
@@ -51,35 +49,38 @@ local function httpResponse(s)
 		bytesRead, err = s:read(buffer, BUFSIZ);
 
 		if bytesRead then
-			local str = ffi.string(buffer, bytesRead);
-			io.write(str);
+			cumulative = cumulative + bytesRead;
 		else
-			print("==== httpResponse.READ, ERROR: ", err)
+			print("read, error: ", err)
 			break;
 		end
 
 	until bytesRead < 1
 
-	print("-----------------")
+	return cumulative;
 end
 
 
 local function probeSite(sitename)
+	-- lookup the site ip address
+	print("==== probeSite : ", sitename);
 
-	local s = AsyncSocket();
-	print("==== probeSite : ", sitename, s.fdesc.fd);
+	local s = net.AsyncSocket();
 
-	local success, err = s:connect(sitename, 80);  
+	success, err = s:connect(sitename, 80);  
 
 	if not success then
-		print("NO CONNECTION TO: ", sitename, err);
+		print("connect, error: ", err);
 		return false, err
 	end
+
 	-- issue a request so we have something to read
 	httpRequest(s, sitename);
-	httpResponse(s);
+	local size, err = httpResponse(s);
 
-	s:close();
+	if size then
+		probes[sitename] = {size=size}
+	end
 end
 
 local function stopProgram()
@@ -87,7 +88,7 @@ local function stopProgram()
 end
 
 local function main()
-	local maxProbes = 80;
+	local maxProbes = 100;
 
 	alarm:delay(stopProgram, 1000*120)
 	
@@ -97,15 +98,4 @@ local function main()
 	end
 end
 
-
-local function probeStress()
-	alarm:delay(stopProgram, 1000*20)
-
-	for i=1,10 do
-		Kernel:spawn(probeSite, sites[i])
-		--probeSite(sites[i])
-	end
-end
-
 Kernel:run(main)
---Kernel:run(probeStress)
