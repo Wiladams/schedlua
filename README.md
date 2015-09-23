@@ -66,3 +66,8 @@ functor.lua
 	  funcs.routine1(params);
 	  funcs.routine3(params);
 
+
+
+References:
+* Relevant Blog Entries
+** https://williamaadams.wordpress.com/?s=schedlua
