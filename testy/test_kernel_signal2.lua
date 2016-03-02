@@ -1,7 +1,7 @@
 package.path = package.path.."';../?.lua"
 
-local kernel = require("kernel"){exportglobal=true}
-local alarm = require("alarm")(kernel,true);
+local kernel = require("schedlua.kernel"){exportglobal=true}
+local alarm = require("schedlua.alarm")(kernel,true);
 
 local function waiter(num)
 	num = num or 0

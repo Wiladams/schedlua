@@ -9,9 +9,9 @@ end
 local Alarm_Included = true;
 
 
-local Functor = require("functor")
-local tabutils = require("tabutils")
-local Clock = require("clock")
+local Functor = require("schedlua.functor")
+local tabutils = require("schedlua.tabutils")
+local Clock = require("schedlua.clock")
 
 
 local Alarm = {

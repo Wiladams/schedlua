@@ -2,10 +2,10 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local net = require("linux_net")
-local epoll = require("epoll")
-local asyncio = require("asyncio")
-local errnos = require("linux_errno").errnos
+local net = require("schedlua.linux_net")
+local epoll = require("schedlua.epoll")
+local asyncio = require("schedlua.asyncio")
+local errnos = require("schedlua.linux_errno").errnos
 
 
 local function lookupsite(nodename, servname)

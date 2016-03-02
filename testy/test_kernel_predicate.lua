@@ -1,9 +1,9 @@
 --test_scheduler.lua
 package.path = package.path..";../?.lua"
 
-local Functor = require("functor")
-local Kernel = require("kernel"){exportglobal = true}
-local Predicate = require("predicate")(Kernel, true)
+local Functor = require("schedlua.functor")
+local Kernel = require("schedlua.kernel")()
+local Predicate = require("schedlua.predicate")(Kernel, true)
 
 local idx = 0;
 local maxidx = 100;

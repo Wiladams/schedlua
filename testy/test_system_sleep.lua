@@ -1,7 +1,7 @@
 --test_stopwatch.lua
 package.path = package.path..";../?.lua"
 
-local system = require("linux")
+local system = require("schedlua.linux")
 
 
 

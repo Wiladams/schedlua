@@ -11,13 +11,15 @@ local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 
-local Kernel = require("kernel")();
-local net = require("linux_net")();
+local Kernel = require("schedlua.kernel")();
+local net = require("schedlua.linux_net")();
+
+local alarm = require("schedlua.alarm")(Kernel)
+
 local sites = require("sites");
-local alarm = require("alarm")(Kernel)
 --local asyncio = require("asyncio")
 
-local AsyncSocket = require("AsyncSocket")
+local AsyncSocket = require("schedlua.AsyncSocket")
 
 --asyncio:setEventQuanta(1000);
 

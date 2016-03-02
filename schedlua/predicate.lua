@@ -1,5 +1,5 @@
 --predicate.lua
-local Functor = require("functor")
+local Functor = require("schedlua.functor")
 
 local Predicate = {}
 setmetatable(Predicate, {

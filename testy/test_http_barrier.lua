@@ -3,9 +3,9 @@ package.path = package.path..";../?.lua"
 
 local ffi = require("ffi")
 
-local Kernel = require("kernel"){exportglobal = true}
-local predicate = require("predicate")(Kernel, true)
-local AsyncSocket = require("AsyncSocket")
+local Kernel = require("schedlua.kernel"){exportglobal = true}
+local predicate = require("schedlua.predicate")(Kernel, true)
+local AsyncSocket = require("schedlua.AsyncSocket")
 
 local sites = require("sites");
 

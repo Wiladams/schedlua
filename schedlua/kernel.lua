@@ -2,12 +2,12 @@
 -- kernel is a singleton, so return
 -- single instance if we've already been
 -- through this code
-print("== KERNEL INCLUDED ==")
+--print("== KERNEL INCLUDED ==")
 
-local Scheduler = require("scheduler")
-local Task = require("task")
+local Scheduler = require("schedlua.scheduler")
+local Task = require("schedlua.task")
 --local Queue = require("queue")
-local Functor = require("functor")
+local Functor = require("schedlua.functor")
 
 local Kernel = {
 	ContinueRunning = true;
@@ -17,11 +17,11 @@ local Kernel = {
 }
 
 setmetatable(Kernel, {
-    __call = function(self, params)
+    __call = function(self, keeplocal)
     	params = params or {}
     	params.Scheduler = params.Scheduler or self.Scheduler
     	
-    	if params.exportglobal then
+    	if not keeplocal then
     		self:globalize();
     	end
 
@@ -156,5 +156,6 @@ function Kernel.globalize()
 
     yield = Functor(Kernel.yield, Kernel);
 end
+
 
 return Kernel;

@@ -4,7 +4,7 @@ package.path = package.path..";../?.lua"
 local ffi = require("ffi")
 local bit = require("bit")
 
-local system = require("linux")()
+local system = require("schedlua.linux")()
 
 local u64 = ffi.typeof("uint64_t");
 local i64 = ffi.typeof("int64_t");

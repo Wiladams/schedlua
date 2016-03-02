@@ -1,12 +1,14 @@
 --test_scheduler.lua
 package.path = package.path..";../?.lua"
 
-local Kernel = require("kernel"){exportglobal = true}
+local Kernel = require("schedlua.kernel")()
+
+
 
 
 local function numbers(ending)
 	local idx = 0;
-	local function closure()
+	local function fred()
 		idx = idx + 1;
 		if idx > ending then
 			return nil;
@@ -14,7 +16,7 @@ local function numbers(ending)
 		return idx;
 	end
 	
-	return closure;
+	return fred;
 end
 
 local function task1()

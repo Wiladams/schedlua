@@ -9,7 +9,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local net = require("linux_net"){exportglobal=true}
+local net = require("schedlua.linux_net"){exportglobal=true}
 
 
 local server_address = "127.0.0.1"

@@ -1,9 +1,9 @@
 --test_stopwatch.lua
 package.path = package.path..";../?.lua"
 
-local Kernel = require("kernel"){exportglobal = true};
-local Alarm = require("alarm")(Kernel, true)
-local Clock, timespec = require("clock")
+local Kernel = require("schedlua.kernel")();
+local Alarm = require("schedlua.alarm")(Kernel, true)
+local Clock, timespec = require("schedlua.clock")
 
 local c1 = Clock();
 

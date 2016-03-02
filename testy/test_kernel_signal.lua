@@ -1,8 +1,8 @@
 --test_scheduler.lua
 package.path = package.path..";../?.lua"
 
-local Kernel = require("kernel"){exportglobal = true}
-local Functor = require("functor")
+local Kernel = require("schedlua.kernel")()
+local Functor = require("schedlua.functor")
 
 local function numbers(ending)
 	local idx = 0;
@@ -31,6 +31,7 @@ end
 local function counter(name, nCount)
 	for num in numbers(nCount) do
 		print(num)
+		--local eventName = name..tostring(num);
 		local eventName = name..tostring(num);
 		--print(eventName)
 		signalOne(eventName);
@@ -41,19 +42,27 @@ local function counter(name, nCount)
 	signalAll(name..'-finished')
 end
 
+function wait15() 
+	print("LAMDA"); 
+	waitForSignal("counter15") 
+	print("reached 15!!") 
+end
+
 local function main()
 	local t1 = spawn(counter, "counter", 50)
 	local t2 = spawn(waitingOnCount, "counter", 20)
-	local t3 = spawn(function() print("LAMDA"); waitForSignal("counter15") print("reached 15!!") end)
-	
+	local t3 = spawn(wait15)
+
+--	counter15
 	-- test signalAll().  All three of these should trigger when
 	-- counter finishes
 	local t13 = onSignal(Functor(onCountFinished, "counter-1"), "counter-finished")
 	local t14 = onSignal(Functor(onCountFinished, "counter-2"), "counter-finished")
 	local t15 = onSignal(Functor(onCountFinished, "counter-3"), "counter-finished")
+--
 end
 
 run(main)
 
 
-print("After kernel run...")
+--print("After kernel run...")
