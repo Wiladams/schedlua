@@ -17,11 +17,11 @@ local Kernel = {
 }
 
 setmetatable(Kernel, {
-    __call = function(self, keeplocal)
+    __call = function(self, params)
     	params = params or {}
     	params.Scheduler = params.Scheduler or self.Scheduler
     	
-    	if not keeplocal then
+    	if not params.keeplocal then
     		self:globalize();
     	end
 
