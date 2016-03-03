@@ -1,9 +1,9 @@
  package = "schedlua"
- version = "0.1-1"
+ version = "0.1-2"
 
  source = {
     url = "https://github.com/wiladams/schedlua",
-    tag = "v0.1-1"
+    tag = "v0.1-2"
  }
 
  description = {
