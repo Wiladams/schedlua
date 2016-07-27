@@ -6,16 +6,46 @@ local Task = require("schedlua.task");
 
 
 --[[
-	The Scheduler supports a collaborative processing
-	environment.  As such, it manages multiple tasks which
-	are represented by Lua coroutines.
+	The Scheduler supports a cooperative multi-tasking
+	environment.  The fundamental unit of execution is the Lua coroutine.
+	Lua coroutines allow a program to rapidly switch between different coding
+	contexts.  The language itself provides the simple switching mechanism, but
+	does not provide a mechanism to organize these various tasks, which means there
+	are no guarantees in terms of fairness, nor organizing principles to ensure any
+	particular model or multi-tasking.  The scheduler provides a mechanism by which
+	work can be organized and executed in a manner that provides coherence to a larger
+	application.
 
-	The scheduler works by being the main routine which is running
-	in the application.  When work is to be done, it is encapsulated in 
-	the form of a task object.  The scheduler relies upon that task object
-	to call a form of 'yield' at some point, at which time it will receive
-	the main thread of execution, and will pick the next task out of the ready
-	list to run.
+	The scheduler is of primary benefit which it is managing hundreds, if not
+	thousands of tasks which intend to execute concurrently.
+
+	Work that is to be performed is encapsulated in a 'task' object.  The task object
+	contains the entirety of the context related to a particular task.  This is the 
+	parameters that were used to begin execution, as well as a reference to the function
+	that is actually to be run to perform the task.
+
+	The scheduler works by maintaining a 'ReadyList', which are the tasks which
+	are ready to receive some compute cycles.  Tasks are added to the list by
+	calling the scheduler's 'scheduleTask()' function.
+
+	Putting a task on the ready list does not cause it to execute immediately.  It
+	is just an indicator that at some point in the future this task will execute.
+
+	Which task is to execute next is determined in the scheduler's 'step()' function.
+	Here, the schedulers task picking routine (first in first out) pulls the next 
+	task out of the ReadyList, and resumes it.
+
+	A task will run until it explicitly calls 'yield()', or yields implicitly by 
+	performing an operation that in turn calls yield.
+
+	This scheduler is fairly simple, and will be appropriate for many relatively
+	simple cooperative multi-tasking environments.  In cases where a different
+	policy of fairness is required, a different scheduler might be more appropriate.
+
+	The scheduler is implemented as an object, and you must create an instance of
+	it to be used in your application.  This allows for the possibility of
+	maintaining multiple different schedulers within the same Lua state.  It is
+	not likely that this will be a highly used featured, but the possibility exists.
 --]]
 local Scheduler = {}
 setmetatable(Scheduler, {
@@ -28,7 +58,6 @@ local Scheduler_mt = {
 }
 
 function Scheduler.init(self, ...)
-	--print("==== Scheduler.init ====")
 	local obj = {
 		TasksReadyToRun = Queue();
 	}
@@ -44,7 +73,15 @@ end
 --[[
 		Instance Methods
 --]]
+--[[
+	tasksPending
 
+	A simple method to let anyone know how many tasks are currently
+	on the ready to run list.
+
+	This might be useful when you're running some predicate logic based 
+	on how many tasks there are.
+--]]
 function Scheduler.tasksPending(self)
 	return self.TasksReadyToRun:length();
 end
@@ -60,7 +97,7 @@ end
 -- metamethod implemented.
 -- The 'params' is a table of parameters which will be passed to the function
 -- when it's ready to run.
-function Scheduler.scheduleTask(self, task, params)
+function Scheduler.scheduleTask(self, task, params, priority)
 	--print("Scheduler.scheduleTask: ", task, params)
 	params = params or {}
 	
@@ -69,28 +106,28 @@ function Scheduler.scheduleTask(self, task, params)
 	end
 
 	task:setParams(params);
-	self.TasksReadyToRun:enqueue(task);	
+	
+	if priority == 0 then
+		self.TasksReadyToRun:pushFront(task);	
+	else
+		self.TasksReadyToRun:enqueue(task);	
+	end
+
 	task.state = "readytorun"
 
 	return task;
 end
 
-
-
-function Scheduler.removeFiber(self, fiber)
-	--print("REMOVING DEAD FIBER: ", fiber);
+function Scheduler.removeTask(self, task)
+	--print("REMOVING DEAD TASK: ", task);
 	return true;
-end
-
-function Scheduler.inMainFiber(self)
-	return coroutine.running() == nil; 
 end
 
 function Scheduler.getCurrentTask(self)
 	return self.CurrentFiber;
 end
 
-function Scheduler.suspendCurrentFiber(self, ...)
+function Scheduler.suspendCurrentTask(self, ...)
 	self.CurrentFiber.state = "suspended"
 end
 
@@ -105,7 +142,7 @@ function Scheduler.step(self)
 	end
 
 	if task:getStatus() == "dead" then
-		self:removeFiber(task)
+		self:removeTask(task)
 
 		return true;
 	end
@@ -156,7 +193,7 @@ function Scheduler.step(self)
 	-- bother putting it back into the readytorun queue
 	-- just remove the task from the list of tasks
 	if task:getStatus() == "dead" then
-		self:removeFiber(task)
+		self:removeTask(task)
 
 		return true;
 	end
@@ -169,9 +206,6 @@ function Scheduler.step(self)
 	end
 end
 
-function Scheduler.yield(self, ...)
-	return coroutine.yield(...);
-end
 
 
 return Scheduler

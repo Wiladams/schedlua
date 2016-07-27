@@ -1,70 +1,87 @@
 --predicate.lua
-local Functor = require("schedlua.functor")
 
-local Predicate = {}
-setmetatable(Predicate, {
-	__call = function(self, kernel, globalize)
-		self.Kernel = kernel;
-		if globalize then
-			self:globalize();
-		end
-		return self;
-	end;
-})
+--[[
+	This, implementation of cooperative flow control mechanisms.
+	The routines essentially wrap basic signaling with convenient words
+	and spawning operations.
+
+	The fundamental building block is the 'predicate', which is nothing more
+	than a function which returns a boolean value.
+
+	The typical usage will be to block a task with 'waitForPredicate', which will
+	suspend the current task until the specified predicate returns a value of 'true'.
+	It will then be resumed from that point.
+
+	waitForPredicate
+	signalOnPredicate
+	when
+	whenever
+--]]
+
+local spawn = spawn;
+local signalAll = signalAll;
+local signalOne = signalOne;
+local getCurrentTaskID = getCurrentTaskID;
 
 
-function Predicate.signalOnPredicate(self, pred, signalName)
+local function waitForPredicate(pred)
+	local signalName = "predicate-"..tostring(getCurrentTaskID());
+	signalOnPredicate(pred, signalName);
+	return waitForSignal(signalName);
+end
+
+local function signalOnPredicate(pred, signalName)
 	local function closure()
 		local res = nil;
 		repeat
 			res = pred();
 			if res == true then 
-				return self.Kernel:signalAll(signalName) 
+				return signalAllImmediate(signalName) 
 			end;
 
-			self.Kernel:yield();
+			yield();
 		until res == nil
 	end
 
-	return self.Kernel:spawn(closure)
+	return spawn(closure)
 end
 
-function Predicate.waitForPredicate(self, pred)
-	local signalName = "predicate-"..tostring(self.Kernel:getCurrentTaskID());
-	self:signalOnPredicate(pred, signalName);
-	return self.Kernel:waitForSignal(signalName);
-end
 
-function Predicate.when(self, pred, func)
+
+local function when(pred, func)
 	local function closure(lpred, lfunc)
-		self:waitForPredicate(lpred)
+		waitForPredicate(lpred)
 		lfunc()
 	end
 
-	return self.Kernel:spawn(closure, pred, func)
+	return spawn(closure, pred, func)
 end
 
-function Predicate.whenever(self, pred, func)
-
+local function whenever(pred, func)
 	local function closure(lpred, lfunc)
-		local signalName = "whenever-"..tostring(self.Kernel:getCurrentTaskID());
+		local signalName = "whenever-"..tostring(getCurrentTaskID());
 		local res = true;
 		repeat
-			self:signalOnPredicate(lpred, signalName);
-			res = self.Kernel:waitForSignal(signalName);
+			signalOnPredicate(lpred, signalName);
+			res = waitForSignal(signalName);
 			lfunc()
 		until false
 	end
 
-	return self.Kernel:spawn(closure, pred, func)
+	return spawn(closure, pred, func)
 end
 
-function Predicate.globalize(self)
-	_G["signalOnPredicate"] = Functor(Predicate.signalOnPredicate, Predicate);
-	_G["waitForPredicate"] = Functor(Predicate.waitForPredicate, Predicate);
-	_G["when"] = Functor(Predicate.when, Predicate);
-	_G["whenever"] = Functor(Predicate.whenever, Predicate);
+local function globalize(tbl)
+	tbl = tbl or _G;
 
+	tbl["signalOnPredicate"] = signalOnPredicate;
+	tbl["waitForPredicate"] = waitForPredicate;
+	tbl["waitForTruth"] = waitForPredicate;
+	tbl["when"] = when;
+	tbl["whenever"] = whenever;
+
+	return tbl;
 end
 
-return Predicate
+return globalize()
+

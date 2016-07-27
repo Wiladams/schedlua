@@ -1,161 +1,179 @@
---kernel.lua
--- kernel is a singleton, so return
--- single instance if we've already been
--- through this code
+-- kernel.lua
+-- The kernel is the central figure in schedlua.  There is a single
+-- instance of the kernel within a single lua state, so the kernel
+-- is a global variable.
+-- If it has already been created, we simply return that single instance.
+
 --print("== KERNEL INCLUDED ==")
+
+if Kernel ~= nil then
+	return Kernel;
+end
 
 local Scheduler = require("schedlua.scheduler")
 local Task = require("schedlua.task")
---local Queue = require("queue")
-local Functor = require("schedlua.functor")
 
-local Kernel = {
+Kernel = {
 	ContinueRunning = true;
 	TaskID = 0;
 	Scheduler = Scheduler();
 	TasksSuspendedForSignal = {};
 }
+local Kernel = Kernel;
 
-setmetatable(Kernel, {
-    __call = function(self, params)
-    	params = params or {}
-    	params.Scheduler = params.Scheduler or self.Scheduler
-    	
-    	if not params.keeplocal then
-    		self:globalize();
-    	end
 
-    	self.Scheduler = params.Scheduler;
-
-    	return self;
-    end,
-})
-
-function Kernel.getNewTaskID(self)
-	self.TaskID = self.TaskID + 1;
-	return self.TaskID;
+local function getNewTaskID()
+	Kernel.TaskID = Kernel.TaskID + 1;
+	return Kernel.TaskID;
 end
 
-function Kernel.getCurrentTaskID(self)
-	return self:getCurrentTask().TaskID;
+local function getCurrentTask()
+	return Kernel.Scheduler:getCurrentTask();
 end
 
-function Kernel.getCurrentTask(self)
-	return self.Scheduler:getCurrentTask();
+local function getCurrentTaskID()
+	return getCurrentTask().TaskID;
 end
 
-function Kernel.spawn(self, func, ...)
+
+local function inMainTask()
+	return coroutine.running() == nil; 
+end
+
+local function coop(priority, func, ...)
 	local task = Task(func, ...)
-	task.TaskID = self:getNewTaskID();
-	self.Scheduler:scheduleTask(task, {...});
-	
-	return task;
+	task.TaskID = getNewTaskID();
+	task.Priority = priority;
+	return Kernel.Scheduler:scheduleTask(task, {...});
 end
 
-function Kernel.suspend(self, ...)
-	self.Scheduler:suspendCurrentFiber();
-	return self:yield(...)
+local function spawn(func, ...)
+	return coop(100, func, ...);
 end
 
-function Kernel.yield(self, ...)
-	return self.Scheduler:yield();
+local function yield(...)
+	return coroutine.yield(...);
+end
+
+local function suspend(...)
+	Kernel.Scheduler:suspendCurrentTask();
+	return yield(...)
 end
 
 
-function Kernel.signalOne(self, eventName, ...)
-	if not self.TasksSuspendedForSignal[eventName] then
+local function signalTasks(eventName, priority, allof, ...)
+	local tasklist = Kernel.TasksSuspendedForSignal[eventName];
+
+	if not  tasklist then
 		return false, "event not registered", eventName
 	end
 
-	local nTasks = #self.TasksSuspendedForSignal[eventName]
+	local nTasks = #tasklist
 	if nTasks < 1 then
 		return false, "no tasks waiting for event"
 	end
 
-	local suspended = self.TasksSuspendedForSignal[eventName][1];
-
-	self.Scheduler:scheduleTask(suspended,{...});
-	table.remove(self.TasksSuspendedForSignal[eventName], 1);
-
-	return true;
-end
-
-function Kernel.signalAll(self, eventName, ...)
-	if not self.TasksSuspendedForSignal[eventName] then
-		return false, "event not registered"
-	end
-
-	local nTasks = #self.TasksSuspendedForSignal[eventName]
-	if nTasks < 1 then
-		return false, "no tasks waiting for event"
-	end
-
-	for i=1,nTasks do
-		self.Scheduler:scheduleTask(self.TasksSuspendedForSignal[eventName][1],{...});
-		table.remove(self.TasksSuspendedForSignal[eventName], 1);
+	if allofthem then
+		local allparams = {...}
+		for i=1,nTasks do
+			Kernel.Scheduler:scheduleTask(tasklist[1],allparams, priority);
+			table.remove(tasklist, 1);
+		end
+	else
+		Kernel.Scheduler:scheduleTask(tasklist[1],{...}, priority);
+		table.remove(tasklist, 1);
 	end
 
 	return true;
 end
 
-function Kernel.waitForSignal(self, eventName)
-	local currentFiber = self.Scheduler:getCurrentTask();
+local function signalOne(eventName, ...)
+	return signalTasks(eventName, 100, false, ...)
+end
+
+local function signalAll(eventName, ...)
+	return signalTasks(eventName, 100, true, ...)
+end
+
+local function signalAllImmediate(eventName, ...)
+	return signalTasks(eventName, 0, true, ...)
+end
+
+local function waitForSignal(eventName)
+	local currentFiber = Kernel.Scheduler:getCurrentTask();
 
 	if currentFiber == nil then
 		return false, "not currently in a running task"
 	end
 
-	if not self.TasksSuspendedForSignal[eventName] then
-		self.TasksSuspendedForSignal[eventName] = {}
+	if not Kernel.TasksSuspendedForSignal[eventName] then
+		Kernel.TasksSuspendedForSignal[eventName] = {}
 	end
 
-	table.insert(self.TasksSuspendedForSignal[eventName], currentFiber);
+	table.insert(Kernel.TasksSuspendedForSignal[eventName], currentFiber);
 
-	return self:suspend()
+	return suspend()
 end
 
-function Kernel.onSignal(self, func, eventName)
+local function onSignal(eventName, func)
 	local function closure()
-		self:waitForSignal(eventName)
+		waitForSignal(eventName)
 		func();
 	end
 
-	return self:spawn(closure)
+	return spawn(closure)
 end
 
 
 
-function Kernel.run(self, func, ...)
+local function run(func, ...)
 
 	if func ~= nil then
-		self:spawn(func, ...)
+		spawn(func, ...)
 	end
 
-	while (self.ContinueRunning) do
-		self.Scheduler:step();		
+	while (Kernel.ContinueRunning) do
+		Kernel.Scheduler:step();		
 	end
 end
 
-function Kernel.halt(self)
-	self.ContinueRunning = false;
+local function halt(self)
+	Kernel.ContinueRunning = false;
 end
 
-function Kernel.globalize()
-	halt = Functor(Kernel.halt, Kernel);
-    onSignal = Functor(Kernel.onSignal, Kernel);
+local function globalize(tbl)
+	tbl = tbl or _G;
 
-    run = Functor(Kernel.run, Kernel);
+	-- task management
+	tbl["halt"] = halt;
+	tbl["run"] = run;
+	tbl["coop"] = coop;
+	tbl["spawn"] = spawn;
+	tbl["suspend"] = suspend;
+	tbl["yield"] = yield;
 
-    signalAll = Functor(Kernel.signalAll, Kernel);
-    signalOne = Functor(Kernel.signalOne, Kernel);
+	-- signaling
+	tbl["onSignal"] = onSignal;
+	tbl["signalAll"] = signalAll;
+	tbl["signalAllImmediate"] = signalAllImmediate;
+	tbl["signalOne"] = signalOne;
+	tbl["waitForSignal"] = waitForSignal;
 
-    spawn = Functor(Kernel.spawn, Kernel);
-    suspend = Functor(Kernel.suspend, Kernel);
+	-- extras
+	tbl["getCurrentTaskID"] = getCurrentTaskID;
 
-    waitForSignal = Functor(Kernel.waitForSignal, Kernel);
-
-    yield = Functor(Kernel.yield, Kernel);
+	return tbl;
 end
 
+-- We globalize before including the extras because they will 
+-- assume the global state is already set, and spawning and signaling
+-- are already available.
 
-return Kernel;
+local global = globalize();
+
+-- Extra non-core routines
+local Predicate = require("schedlua.predicate")
+local Alarm = require("schedlua.alarm")
+
+return globalize;
+

@@ -1,7 +1,7 @@
 --test_scheduler.lua
 package.path = package.path..";../?.lua"
 
-local Kernel = require("schedlua.kernel")()
+local Kernel = require("schedlua.kernel")
 
 
 

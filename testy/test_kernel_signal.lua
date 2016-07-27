@@ -1,68 +1,73 @@
---test_scheduler.lua
+--test_kernel_signal.lua
+--[[
+	A rudimentary test of the kernel signaling routines.
+	This test runs a counter which generates a stream of well named
+	events.  A couple of routines will respond to the appropriate events
+	using signalOne().
+
+	The halt() routine will respond to the 'counter-finished' event
+	which is signaled with signalAll()
+--]]
 package.path = package.path..";../?.lua"
 
-local Kernel = require("schedlua.kernel")()
-local Functor = require("schedlua.functor")
+local Kernel = require("schedlua.kernel")
 
-local function numbers(ending)
-	local idx = 0;
-	local function closure()
-		idx = idx + 1;
-		if idx > ending then
-			return nil;
-		end
-		return idx;
-	end
-	
-	return closure;
-end
 
-local function waitingOnCount(name, ending)
-	local eventName = name..tostring(ending)
-	waitForSignal(eventName)
 
-	print("REACHED COUNT: ", ending)
-end
+--[[
+	counter
 
-local function onCountFinished(name)
-	print("Counter Finished: ", name)
-end
+	This routine serves the purpose of generating signals
+	based on the iteration of a series of numbers.
 
+	The name of the signal is derived from the concatenation of 
+	the name parameter passed into the function, and the current
+	numerical value of the iteration.
+
+	During each iteration, a single task is signaled (with signalOne)
+	and the counter yields, allowing that task to actually execute.
+
+	At the end of the enumeration, all tasks that are waiting on the 'finished'
+	event are signaled (with signalAll()).
+--]]
 local function counter(name, nCount)
-	for num in numbers(nCount) do
-		print(num)
-		--local eventName = name..tostring(num);
+	for num=1, nCount do
 		local eventName = name..tostring(num);
-		--print(eventName)
-		signalOne(eventName);
+		print(eventName)
 
+		signalOne(eventName);
 		yield();
 	end
 
 	signalAll(name..'-finished')
 end
 
+-- A task which will wait for the count of 15
+-- and print a message
 function wait15() 
-	print("LAMDA"); 
 	waitForSignal("counter15") 
 	print("reached 15!!") 
 end
 
+-- A task which will wait for the count of 20
+-- and print a message.
+function wait20() 
+	waitForSignal("counter20") 
+	print("reached 20!!") 
+end
+
+
 local function main()
-	local t1 = spawn(counter, "counter", 50)
-	local t2 = spawn(waitingOnCount, "counter", 20)
+	-- Spawn the task which will generate a steady stream of signals
+	local t1 = spawn(counter, "counter", 25)
+
+	-- spawn a couple of tasks which will respond to reaching
+	-- specific counting events
+	local t2 = spawn(wait20)
 	local t3 = spawn(wait15)
 
---	counter15
-	-- test signalAll().  All three of these should trigger when
-	-- counter finishes
-	local t13 = onSignal(Functor(onCountFinished, "counter-1"), "counter-finished")
-	local t14 = onSignal(Functor(onCountFinished, "counter-2"), "counter-finished")
-	local t15 = onSignal(Functor(onCountFinished, "counter-3"), "counter-finished")
---
+	-- setup to call halt when counting is finished
+	onSignal("counter-finished", halt)
 end
 
 run(main)
-
-
---print("After kernel run...")

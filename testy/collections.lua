@@ -134,7 +134,7 @@ local Stack_mt = {
 	__index = Stack;
 }
 
-Stack.new = function(self, ...)
+function Stack.new(self, ...)
 	local obj = {
 		Impl = List.new();
 	}
@@ -144,15 +144,15 @@ Stack.new = function(self, ...)
 	return obj;
 end
 
-Stack.len = function(self)
+function Stack.len(self)
 	return self.Impl.last - self.Impl.first+1
 end
 
-Stack.push = function(self, item)
+function Stack.push(self, item)
 	return self.Impl:PushRight(item);
 end
 
-Stack.pop = function(self)
+function Stack.pop(self)
 	return self.Impl:PopRight();
 end
 

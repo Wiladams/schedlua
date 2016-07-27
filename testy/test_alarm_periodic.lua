@@ -2,28 +2,27 @@
 package.path = package.path..";../?.lua"
 
 local Kernel = require("schedlua.kernel")();
-local Alarm = require("schedlua.alarm")(Kernel, true)
-local Clock, timespec = require("schedlua.clock")
+local StopWatch = require("schedlua.stopwatch")
 
-local c1 = Clock();
+local sw = StopWatch();
 
-local function haltAfterTime(nsecs)
+
+local function haltAfterTime(msecs)
 	local function closure()
-		print("READY TO HALT: ", nsecs, c1:secondsElapsed());
+		print("READY TO HALT: ", msecs, sw:seconds());
 		halt();
 	end
 
-	delay(closure, nsecs);	-- halt after 10 seconds
+	delay(msecs, closure);	-- halt after specified seconds
 end
 
 local function everyPeriod()
-	print("PERIODIC: ", c1:secondsElapsed());
+	print("PERIODIC: ", sw:seconds());
 end
 
 local function main()
-	periodic(everyPeriod,250)
+	periodic(250, everyPeriod)
 	haltAfterTime(5000);
-
 end
 
 run(main)

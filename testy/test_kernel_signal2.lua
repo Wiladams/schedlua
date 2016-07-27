@@ -1,6 +1,6 @@
 package.path = package.path.."';../?.lua"
 
-local kernel = require("schedlua.kernel"){exportglobal=true}
+local kernel = require("schedlua.kernel")
 local alarm = require("schedlua.alarm")(kernel,true);
 
 local function waiter(num)
@@ -15,7 +15,7 @@ end
 
 local function main()
 	for i=1,4 do
-		onSignal(waiter(i),"waiting")
+		onSignal(waiting, waiter(i))
 	end
 
 	-- sleep a bit giving waiter a chance to register

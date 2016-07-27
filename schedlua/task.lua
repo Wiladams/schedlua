@@ -1,6 +1,6 @@
 
 --[[
-	Fiber, contains stuff related to a running fiber
+	Task, contains stuff related to encapsulated code
 --]]
 local Task = {}
 
@@ -57,8 +57,5 @@ function Task.resume(self)
 	return coroutine.resume(self.routine, unpack(self.params));
 end
 
-function Task.yield(self, ...)
-	return coroutine.yield(...)
-end
 
 return Task;

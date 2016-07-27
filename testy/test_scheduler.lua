@@ -13,7 +13,7 @@ end
 local function spawn(scheduler, func, ...)
 	local task = Task(func, ...)
 	task.TaskID = getNewTaskID();
-	scheduler:scheduleTask(task, {...});
+	Scheduler:scheduleTask(task, {...});
 	
 	return task;
 end

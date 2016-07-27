@@ -1,20 +1,19 @@
 --test_stopwatch.lua
-package.path = package.path..";../?.lua"
+package.path = "../?.lua;"..package.path
 
-local Kernel = require("schedlua.kernel")()
-local Alarm = require("schedlua.alarm")(Kernel)
-local Clock, timespec = require("schedlua.clock")
+local Kernel = require("schedlua.kernel")
+local StopWatch = require("schedlua.stopwatch")
 
-local c1 = Clock();
+local sw = StopWatch();
 
 local function twoSeconds()
-	print("TWO SECONDS: ", c1:secondsElapsed());
-	Kernel:halt();
+	print("TWO SECONDS: ", sw:seconds());
+	halt();
 end
 
-local function test_alarm_delay()
-	print("delay(twoSeconds, 2000");
-	Alarm:delay(twoSeconds, 2000);
+local function main()
+	print("delay(2000, twoSeconds)");
+	delay(2000, twoSeconds);
 end
 
-run(test_alarm_delay)
+run(main)

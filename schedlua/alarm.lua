@@ -1,37 +1,23 @@
 --alarm.lua
--- The alarm object is a singleton, so just
--- return the instance if we've already been through
--- this code.
-if Alarm_Included then
-	return Alarm;
+--[[
+	Implied global kernel
+--]]
+
+if Alarm then
+	return Alarm
 end
 
-local Alarm_Included = true;
 
-
-local Functor = require("schedlua.functor")
 local tabutils = require("schedlua.tabutils")
-local Clock = require("schedlua.clock")
+local stopwatch = require("schedlua.stopwatch")
 
+local	ContinueRunning = true;
+local	SignalsWaitingForTime = {};
+local	SWatch = stopwatch();
 
-local Alarm = {
-	ContinueRunning = true;
-	SignalsWaitingForTime = {};
-	Clock = Clock();
-}
-
-setmetatable(Alarm, {
-	__call = function(self, kernel, globalize)
-		self.Kernel = kernel;
-		if globalize then
-			self:globalize();
-		end
-
-		self:run();
-
-		return self;
-	end;
-})
+local function runningTime()
+	return SWatch:seconds();
+end
 
 local function compareDueTime(task1, task2)
 	if task1.DueTime < task2.DueTime then
@@ -42,87 +28,95 @@ local function compareDueTime(task1, task2)
 end
 
 
-function Alarm.waitUntilTime(self, atime)
+function waitUntilTime(atime)
 	-- create a signal
-	local taskID = self.Kernel:getCurrentTaskID();
+	local taskID = getCurrentTaskID();
 	local signalName = "sleep-"..tostring(taskID);
 	local fiber = {DueTime = atime, SignalName = signalName};
 
 	-- put time/signal into list so watchdog will pick it up
-	tabutils.binsert(self.SignalsWaitingForTime, fiber, compareDueTime)
+	tabutils.binsert(SignalsWaitingForTime, fiber, compareDueTime)
 
 	-- put the current task to wait on signal
-	self.Kernel:waitForSignal(signalName);
+	waitForSignal(signalName);
 end
 
-function Alarm.sleep(self, millis)
+-- suspend the current task for the 
+-- specified number of milliseconds
+local function sleep(millis)
 	-- figure out the time in the future
-	local currentTime = self.Clock:getCurrentTime();
+	local currentTime = SWatch:seconds();
 	local futureTime = currentTime + (millis / 1000);
-	return self:waitUntilTime(futureTime);
+	
+	return waitUntilTime(futureTime);
 end
 
-function Alarm.delay(self, func, millis)
+local function delay(millis, func)
 	millis = millis or 1000
 
 	local function closure()
-		self:sleep(millis)
+		sleep(millis)
 		func();
 	end
 
-	return self.Kernel:spawn(closure)
+	return spawn(closure)
 end
 
-function Alarm.periodic(self, func, millis)
+local function periodic(millis, func)
 	millis = millis or 1000
 
 	local function closure()
 		while true do
-			self:sleep(millis)
+			sleep(millis)
 			func();
 		end
 	end
 
-	return self.Kernel:spawn(closure)
+	return spawn(closure)
 end
 
 -- The routine task which checks the list of waiting tasks to see
 -- if any of them need to be signaled to wakeup
-function Alarm.watchdog(self)
-	while (self.ContinueRunning) do
-		local currentTime = self.Clock:getCurrentTime();
+local function watchdog()
+	while (ContinueRunning) do
+		local currentTime = SWatch:seconds();
 		-- traverse through the fibers that are waiting
 		-- on time
-		local nAwaiting = #self.SignalsWaitingForTime;
+		local nAwaiting = #SignalsWaitingForTime;
 		--print("Timer Events Waiting: ", nAwaiting)
 		for i=1,nAwaiting do
 
-			local fiber = self.SignalsWaitingForTime[1];
+			local fiber = SignalsWaitingForTime[1];
 			if fiber.DueTime <= currentTime then
-				self.Kernel:signalOne(fiber.SignalName);
+				signalOne(fiber.SignalName);
 
-				table.remove(self.SignalsWaitingForTime, 1);
-
+				table.remove(SignalsWaitingForTime, 1);
 			else
 				break;
 			end
 		end		
-		self.Kernel:yield();
+		yield();
 	end
 end
 
 
-function Alarm.run(self)
-	self.Kernel:spawn(Functor(Alarm.watchdog, Alarm))
+
+local function globalize(tbl)
+	tbl = tbl or _G
+
+	tbl["delay"] = delay;
+	tbl["periodic"] = periodic;
+	tbl["runningTime"] = runningTime;
+	tbl["sleep"] = sleep;
+
+	return tbl;
 end
 
+globalize();
 
-function Alarm.globalize(self)
-	_G["delay"] = Functor(Alarm.delay, Alarm);
-	_G["periodic"] = Functor(Alarm.periodic, Alarm);
-	_G["sleep"] = Functor(Alarm.sleep, Alarm);
 
-	return self;
-end
+-- This is a global variable because These routines
+-- MUST be a singleton within a lua state
+Alarm = spawn(watchdog)
 
 return Alarm

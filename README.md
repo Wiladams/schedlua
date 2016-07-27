@@ -1,70 +1,60 @@
-schedlua is yet another set of routines concerned with the scheduling
-of work to be done in a cooperative multi-tasking system, such as Lua.
+schedlua is a set of routines that make it relatively easy to create cooperative
+multi-tasking applications in LuaJIT.
 
 Design criteria
-- Complexity by composition rather than mololithic structure
-- Simplicity through leveraged layering
+- Simplicity through minimal coding
+- Complexity by composition rather than complex structures
+- Compactness through reuse
+- minimal number of new concepts
+- implied operations where possible
 
-scheduler
-=========
-The first set of methods are related to the scheduler.  The sceduler
-maintains a 'readyToRun' list of tasks.  Is supports a "scheduleTask()"
-function, and not much else.  The scheduler itself does not get involved
-in the actual creation of tasks.  It is assumed that they are created
-from a different API, and simply handed to the scheduler when scheduling
-operations need to occur with.  The basis scheduler is a simple FIFO scheduler, 
-which gives no weight to one task over another.
+The fundamental notion within schedlua is that a scheduler is used to organize which 
+of many co-routines are run at any given moment.  co-routines are encapsulated
+in a 'task', which can have associated run state as well as other properties.
 
-kernel.lua
-==========
-Although it is possible to program against the scheduler/task combo, you're
-actually better off not doing it this way because it is so rough.  Instead, an application should use the kernel module 
-local Kernel = require("kernel")
+There are a number of constructs that are enacted through the usage of well named
+functions.  These functions are named and organized in such a way as to make
+operations feel natural, convenient, and memorable.
 
 
-functor.lua
-===========
+Here is a typical application:
 
-	A functor is a function that can stand in for another function.
-	It is somewhat of an object because it retains a certain amount 
-	of state.  In this case, it retains the target object, if there is 
-	any.
+local Kernel = require("schedlua.kernel")
 
-	This is fairly useful when you need to call a function on an object
-	at a later time.
 
-	Normally, if the object is constructed thus:
+local function task1()
+	print("first task, first line")
+	yield();
+	print("first task, second line")
+	halt();
+end
 
-	function obj.func1(self, params)
-	end
+local function task2()
+	print("second task, only line")
+end
 
-	You would call the function thus:
-	someobj:func1(params)
+local function main()
+	local t1 = spawn(task1)
+	local t2 = spawn(task2)
+end
 
-	which is really
-	someobj.func1(someobj, params)
+run(main)
 
-	The object instance is passed into the function as the 'self' parameter
-	before the other parameters.
 
-	This is easy enough, but when you're storing the function in a 
-	table, for later call, you have a problem because you need to store
-	the object instance as well, somewhere.
+All applications must begin by including the schedlua.kernel module.
+All applications begin execution by explicitly calling the 'run()' function.
+The run() function takes an optional funtion to be executed, so it is 
+convenient the create a single function, which in turn has all the code
+that you want to execute.
 
-	This is where the Functor comes in.  It will store both the target
-	(if there is one) and the function itself for later execution.
+Within this application, there are two calls to the spawn() funtion.  Each
+call to this function will create a separate cooperative task, which will 
+in turn be added to the scheduler for execution.  A call to 'spawn' does
+not cause the task to execute immediately, but merely to be scheduled for execution.
 
-	You can use it like this:
-
-	funcs = {
-		routine1 = Functor(obj.func1, someobj);
-		routine2 = Functor(obj.func1, someobj2);
-		routine3 = Functor(obj.func2, someobj);
-	}
-	
-	Then use it as:
-	  funcs.routine1(params);
-	  funcs.routine3(params);
+The runtime will constantly step through the list of tasks ready to be run, 
+executing them in turn until each of them reaches a point where they will
+yield, and allow for another task to run.
 
 
 
