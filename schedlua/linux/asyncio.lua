@@ -4,17 +4,17 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local iopoll = nil
+local nativeio = nil
 if ffi.os == "Windows" then
-	iopoll = require("schedlua.iocompletionset")
+	nativeio = require("schedlua.iocompletionset")
 else
-	iopoll = require("schedlua.epoll");
+	nativeio = require("schedlua.linux.epollio");
 end
 
 
 local	EventQuanta = 10;
 local	ContinueRunning = true;
-local	PollSet = iopoll();
+local	PollSet = nativeio();
 local	MaxEvents = 100;		-- number of events we'll ask per quanta
 
 local	READ = 1;
@@ -41,7 +41,7 @@ end
 --]]
 
 local function setEventQuanta(quanta)
-	self.EventQuanta = quanta;
+	EventQuanta = quanta;
 end
 
 local function getNextOperationId()
