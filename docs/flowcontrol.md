@@ -6,10 +6,11 @@ a typical serial application.  Schedlua introduces a few more constructs which
 make it easier to reason about programming in a multi-tasking environment.
 
 At the core of any flow control construct is a boolean test.
+```lua
 	if conditionisTrue then
   		performsomeaction()
 	end
-end
+```
 
 In a single tasking environment, this is easy to understand, as when the 
 condition is true, the action is performed, otherwise it is not.  
@@ -19,7 +20,7 @@ suspending a task until a particular condition is met.  So, whereas the
 simple 'if' statement is a one time test, 'waitForTruth' will suspend
 the task indefinitely, until the condition is met.
 
-
+```lua
 	local counter = 0;
 	local function counterIsFive()
 		counter = counter + 1;
@@ -33,6 +34,7 @@ the task indefinitely, until the condition is met.
 
 	-- continue to execute
 	print(counter)
+```
 
 In this case, the task that is currently executing will be suspended when it makes
 the call to 'waitForTruth'.  It will remain in this suspended state as long as the 
@@ -44,10 +46,10 @@ What if you want to disassociate the conditional check from the current task, an
 essentially just have some bit of code execute cooperatively when the condition
 proves to be true?
 
-	when(conditionisTrue, action)
+	`when(conditionisTrue, action)`
 
 The implementation of this construct is the following:
-
+```lua
 	local function when(pred, func)
 		local function closure(lpred, lfunc)
 			waitForPredicate(lpred)
@@ -56,6 +58,7 @@ The implementation of this construct is the following:
 
 		return spawn(closure, pred, func)
 	end
+```
 
 This is a matter of convenience.  A task is spawned which will be suspended until 
 the condition is true.  Once the condition is true, the specified action will

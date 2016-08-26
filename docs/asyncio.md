@@ -12,6 +12,7 @@ With epoll, you essentially query a file descriptor to see if it is ready
 for a specified operation to occur without blocking.  For example, if you want
 to ready from a network socket, you would perform the following operations:
 
+```lua
 function AsyncSocket.read(self, buff, bufflen)
     
     local success, err = asyncio:waitForIOEvent(self.fdesc, self.ReadEvent);
@@ -33,6 +34,7 @@ function AsyncSocket.read(self, buff, bufflen)
     
     return bytesRead, err;
 end
+```
 
 The first operation is to wait for readiness to read.  Then, assuming it's ready, perform
 the read operation on the file descriptor, returning the number of bytes actually read.
@@ -40,9 +42,10 @@ the read operation on the file descriptor, returning the number of bytes actuall
 Windows takes an almost opposite approach.  Rather than waiting until the file descriptor is ready to be read, you perform the read operation, and wait to be told when
 the operation was completed.
 
+```lua
 fd:read(buff, bufflen)
 waitForCompletion(fd)
-
+```
 It's challenging to make these two different paradigms appear the same as an abstraction,
 so the approach taken in schedlua is to provide objects that are surfaced from the 
 platform specific, and generalize there.  So, there is a nativesocket, nativefiledescriptor, and the like.  Any generalizations will be peformed atop these 
