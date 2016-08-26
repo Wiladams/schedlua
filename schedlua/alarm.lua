@@ -77,25 +77,43 @@ end
 
 -- The routine task which checks the list of waiting tasks to see
 -- if any of them need to be signaled to wakeup
+local function taskReadyToRun()
+	local currentTime = SWatch:seconds();
+	
+	-- traverse through the fibers that are waiting
+	-- on time
+	local nAwaiting = #SignalsWaitingForTime;
+	for i=1,nAwaiting do
+		local task = SignalsWaitingForTime[1];
+		if not task then
+			return false;
+		end
+
+		if task.DueTime <= currentTime then
+			return task
+		else
+			return false
+		end
+	end
+
+	return false;
+end
+
+local function runTask(task)
+	signalOne(task.SignalName);
+
+	table.remove(SignalsWaitingForTime, 1);
+end
+
+
 local function watchdog()
 	while (ContinueRunning) do
-		local currentTime = SWatch:seconds();
-		-- traverse through the fibers that are waiting
-		-- on time
-		local nAwaiting = #SignalsWaitingForTime;
-		--print("Timer Events Waiting: ", nAwaiting)
-		for i=1,nAwaiting do
-
-			local fiber = SignalsWaitingForTime[1];
-			if fiber.DueTime <= currentTime then
-				signalOne(fiber.SignalName);
-
-				table.remove(SignalsWaitingForTime, 1);
-			else
-				break;
-			end
+		local task = taskReadyToRun()
+		if task then
+			runTask(task)
+		else
+			yield();
 		end		
-		yield();
 	end
 end
 
@@ -117,6 +135,7 @@ globalize();
 
 -- This is a global variable because These routines
 -- MUST be a singleton within a lua state
+--Alarm = whenever(taskReadyToRun, runTask)
 Alarm = spawn(watchdog)
 
 return Alarm

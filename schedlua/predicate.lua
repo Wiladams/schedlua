@@ -64,7 +64,7 @@ local function whenever(pred, func)
 		repeat
 			signalOnPredicate(lpred, signalName);
 			res = waitForSignal(signalName);
-			lfunc()
+			lfunc(res)
 		until false
 	end
 

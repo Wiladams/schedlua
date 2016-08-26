@@ -99,7 +99,7 @@ local function signalAllImmediate(eventName, ...)
 	return signalTasks(eventName, 0, true, ...)
 end
 
-local function waitForSignal(eventName)
+local function waitForSignal(eventName,...)
 	local currentFiber = Kernel.Scheduler:getCurrentTask();
 
 	if currentFiber == nil then
@@ -112,7 +112,7 @@ local function waitForSignal(eventName)
 
 	table.insert(Kernel.TasksSuspendedForSignal[eventName], currentFiber);
 
-	return suspend()
+	return suspend(...)
 end
 
 local function onSignal(eventName, func)
