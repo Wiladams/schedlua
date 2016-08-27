@@ -50,14 +50,14 @@ proves to be true?
 
 The implementation of this construct is the following:
 ```lua
-	local function when(pred, func)
-		local function closure(lpred, lfunc)
-			waitForPredicate(lpred)
-			lfunc()
-		end
-
-		return spawn(closure, pred, func)
+local function when(pred, func)
+	local function closure(lpred, lfunc)
+		waitForPredicate(lpred)
+		lfunc()
 	end
+
+	return spawn(closure, pred, func)
+end
 ```
 
 This is a matter of convenience.  A task is spawned which will be suspended until 
@@ -74,7 +74,7 @@ Another supported construct is when you want to perform the action repeatedly,
 rather than doing a one shot, as is the case with the 'when' construct.  The 'whenever'
 construct will serve this purpose.
 
-	whenever(condition, action)
+`whenever(condition, action)`
 
 In this case, once the condition returns 'true', the action is performed, and the
 condition continues to be check, and the action continues to be performed for each
@@ -94,7 +94,7 @@ Here is a program which spawns a task which is a counter, and then
 uses the 'when' construct to halt the program once we have determined
 counting has finished.
 
-
+```lua
 local Kernel = require("schedlua.kernel")
 
 local idx = 0;
@@ -108,8 +108,6 @@ local function counter(name, nCount)
 	end
 end
 
-
-
 local function countingFinished()
 	return idx >= maxidx;
 end
@@ -121,13 +119,14 @@ local function main()
 end
 
 run(main)
-
+```
 
 
 Here is another program, which uses the 'whenever' construct to repeatedly perform
 actions based on some conditions.  It also uses the signaling mechanism to 
 halt the program, just to show how these two can be mixed.
 
+```lua
 local Kernel = require("schedlua.kernel")
 
 local idx = 0;
@@ -146,8 +145,6 @@ local function counter(name, nCount)
 
 	signalAll(name..'-finished')
 end
-
-
 
 local function every5()
 	local lastidx = 0;
@@ -194,7 +191,7 @@ local function main()
 end
 
 run(main)
-
+```
 
 So, that is how you can begin to construct multi-tasking programs using the
 'when' and 'whenever' constructs.  They are essentially a combination of 

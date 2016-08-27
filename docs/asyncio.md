@@ -46,6 +46,7 @@ the operation was completed.
 fd:read(buff, bufflen)
 waitForCompletion(fd)
 ```
+
 It's challenging to make these two different paradigms appear the same as an abstraction,
 so the approach taken in schedlua is to provide objects that are surfaced from the 
 platform specific, and generalize there.  So, there is a nativesocket, nativefiledescriptor, and the like.  Any generalizations will be peformed atop these 

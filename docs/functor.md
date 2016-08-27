@@ -35,15 +35,15 @@ This is where the Functor comes in.  It will store both the object instance
 You can use it like this:
 
 ```lua
-	funcs = {
+funcs = {
 		routine1 = Functor(obj.func1, someobj);
 		routine2 = Functor(obj.func1, someobj2);
 		routine3 = Functor(obj.func2, someobj);
-	}
+}
 ```
 
 Then use it as:
 ```lua
-	  funcs.routine1(params);
-	  funcs.routine3(params);
+funcs.routine1(params);
+funcs.routine3(params);
 ```
