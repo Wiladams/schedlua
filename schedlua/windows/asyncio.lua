@@ -1,7 +1,6 @@
 -- waitForIO.lua
 
 local ffi = require("ffi")
-local Functor = require("Functor")
 local iocompletionset = require("IOCompletionPort");
 local arch = require("arch")
 

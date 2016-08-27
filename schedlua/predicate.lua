@@ -31,19 +31,19 @@ local function waitForPredicate(pred)
 end
 
 local function signalOnPredicate(pred, signalName)
-	local function closure()
+	local function closure(lpred)
 		local res = nil;
 		repeat
-			res = pred();
-			if res == true then 
-				return signalAllImmediate(signalName) 
+			res = lpred();
+			if res then 
+				return signalAllImmediate(signalName, res) 
 			end;
 
 			yield();
 		until res == nil
 	end
 
-	return spawn(closure)
+	return spawn(closure, pred)
 end
 
 

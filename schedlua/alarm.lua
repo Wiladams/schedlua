@@ -83,8 +83,9 @@ local function taskReadyToRun()
 	-- traverse through the fibers that are waiting
 	-- on time
 	local nAwaiting = #SignalsWaitingForTime;
+
 	for i=1,nAwaiting do
-		local task = SignalsWaitingForTime[1];
+		local task = SignalsWaitingForTime[1]; 
 		if not task then
 			return false;
 		end
@@ -101,22 +102,8 @@ end
 
 local function runTask(task)
 	signalOne(task.SignalName);
-
 	table.remove(SignalsWaitingForTime, 1);
 end
-
-
-local function watchdog()
-	while (ContinueRunning) do
-		local task = taskReadyToRun()
-		if task then
-			runTask(task)
-		else
-			yield();
-		end		
-	end
-end
-
 
 
 local function globalize(tbl)
@@ -135,7 +122,6 @@ globalize();
 
 -- This is a global variable because These routines
 -- MUST be a singleton within a lua state
---Alarm = whenever(taskReadyToRun, runTask)
-Alarm = spawn(watchdog)
+Alarm = whenever(taskReadyToRun, runTask)
 
 return Alarm
