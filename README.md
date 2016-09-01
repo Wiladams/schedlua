@@ -72,8 +72,67 @@ The runtime will constantly step through the list of tasks ready to be run,
 executing them in turn until each of them reaches a point where they will
 yield, and allow for another task to run.
 
+Example Using Time and Predicates
+=================================
+
+```lua
+--[[
+	An example of how to use time, predicates
+	and multiple tasks.
+--]]
+
+local Kernel = require("schedlua.kernel")
+local StopWatch = require("schedlua.stopwatch")
+
+local sw = StopWatch();
 
 
-References:
-* Relevant Blog Entries
-** https://williamaadams.wordpress.com/?s=schedlua
+-- A simple conditional which will return true
+-- once we pass 12 seconds according to the clock
+local function timeExpires()
+	return sw:seconds() > 12
+end
+
+-- The response to be executed once we reach
+-- a time of 12 seconds
+local function revertToForm()
+	print("Time: ", sw:seconds())
+	print("The carriage has reverted to a pumpkin")
+	halt();
+end
+
+
+-- The response which will be executed whenever
+-- we pass another second
+local function printTime()
+	print("Time: ", sw:seconds())
+end
+
+
+-- Stitching it all together
+local function main()
+	periodic(1000, printTime)
+	when(timeExpires, revertToForm)
+end
+
+run(main)
+```
+
+In this example, the timer function 'periodic' is being used, as well as the
+predicate function 'when'.  The periodic function is simply executing the 
+'printTime' function once every second (1000 milliseconds).  By calling
+'periodic', a cooperative task is scheduled, and the program continues on
+to the next statement, which is the 'when' call.  The 'when()' function takes
+two parameters.  The first is a function which always returns a non-false
+value, or false.  When the function returns a non-false value, it will 
+then execute the second parameter, which should be a function.  In this case
+the 'revertToForm()' function.
+
+So, overall, the example will print the current running time, once a second, and
+after 12 seconds, it will print a message, and halt() the program.
+
+
+References
+==========
+* Blog Entries
+  * https://williamaadams.wordpress.com/?s=schedlua
