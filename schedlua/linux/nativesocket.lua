@@ -2,54 +2,106 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local net = require("schedlua.linux_net")
-local epoll = require("schedlua.epoll")
-local asyncio = require("schedlua.asyncio")
+local net = require("schedlua.linux.linux_net")
+local nativeio = require("schedlua.linux.epollio");
 local errnos = require("schedlua.linux_errno").errnos
+local lookupsite = require("schedlua.linux.lookupsite")
 
 
-local function lookupsite(nodename, servname)
-    --local servname = nil; -- "http"
-    local res = ffi.new("struct addrinfo * [1]")
-    local hints = ffi.new("struct addrinfo")
+--[[
+    Async IO Specific
+]]
+local EventQuanta = 10;
+local MaxEvents = 100;		-- number of events we'll ask per quanta
+local Events = ffi.new("struct epoll_event[?]", MaxEvents);
+local PollSet = nativeio();
 
-    --hints.ai_flags = net.AI_CANONNAME;
-    hints.ai_family = net.AF_INET;
-    hints.ai_socktype = net.SOCK_STREAM;
 
-    local ret = ffi.C.getaddrinfo(nodename, servname, hints, res);
-    --print("getaddrinfo: ", ret)
-    if ret ~= 0 then
-        return false, ret;
-    end
+local IO_READ = 1;
+local IO_WRITE = 2;
+local IO_CONNECT = 3;
 
-  
-    local sa = ffi.new("struct sockaddr")
-    local addrlen = res[0].ai_addrlen;
 
-    ffi.copy(sa, res[0].ai_addr, res[0].ai_addrlen)
-
-    ffi.C.freeaddrinfo(res[0]);
-
-    return sa, addrlen
+local function sigNameFromFileDescriptor(fd)
+	return "waitforio-"..fd
 end
 
-local AsyncSocket = {}
-setmetatable(AsyncSocket, {
-    __call = function(self, ...)
-        return self:new(...);
-    end,
-})
+--[[
+local function sigNameFromEvent(event, title)
+	title = title or "";
+	local fdesc = ffi.cast("filedesc *", event.data.ptr);
+	--print("sigNameFromEvent, fdesc: ", fdesc)
+	local fd = fdesc.fd;
+	--print("  fd: ", fd);
 
-local AsyncSocket_mt = {
-    __index = AsyncSocket;
-}
+	return sigNameFromFileDescriptor(fdesc.fd);
+end
+--]]
 
-function AsyncSocket.init(self, sock)
+local function setEventQuanta(quanta)
+	EventQuanta = quanta;
+end
+
+
+local function watchForIOEvents(fd, event)
+	return PollSet:add(fd, event);
+end
+
+-- This function allows us to wait for a specific IO event
+--
+local function waitForIOEvent(fdesc, event, title)
+	local success, err = PollSet:modify(fdesc.fd, event);
+	local sigName = sigNameFromEvent(event, title);
+
+	success, err = waitForSignal(sigName);
+
+	return success, err;
+end
+
+
+
+local function ioAvailable()
+	local success, available = PollSet:wait(EventQuanta);
+
+    if not success then return false end
+
+    return results;
+end
+
+local function signalIOTasks(available)
+    for idx=0,available-1 do
+	    local ptr = ffi.cast("struct epoll_event *", ffi.cast("char *", self.Events)+ffi.sizeof("struct epoll_event")*idx);
+		--print("signalIOTasks, ptr.data.ptr: ", ptr, ptr.data.ptr);
+		local sigName = sigNameFromFileDescriptor(completionKey);
+        --print(string.format("signalIOTasks(), signaling: '%s'  Events: 0x%x", sigName,  self.Events[idx].events))
+		signalAll(sigName, Events[idx].events);
+	end
+end
+
+
+
+--[[
+    Create something that represents a socket in the underlying
+    operating system.
+--]]
+local function create(kind, flags, family)
+    kind = kind or net.SOCK_STREAM;
+    family = family or net.AF_INET
+    flags = flags or 0;
+
+    local sock = ffi.C.socket(family, kind, flags);
+    if sock < 0 then
+        return nil, ffi.errno();
+    end
+
     local obj = {
+        kind = kind;
+        family = family;
+        flags = flags;
+
         fdesc = net.filedesc(sock);
     }
-    setmetatable(obj, AsyncSocket_mt);
+
 
     obj.fdesc:setNonBlocking(true);
 
@@ -71,52 +123,46 @@ function AsyncSocket.init(self, sock)
     obj.WriteEvent.data.ptr = obj.fdesc;
     obj.WriteEvent.events = bor(epoll.EPOLLOUT, epoll.EPOLLERR); 
 
+
+
     return obj;
 end
 
-function AsyncSocket.new(self, kind, flags, family)
-    kind = kind or net.SOCK_STREAM;
-    family = family or net.AF_INET
-    flags = flags or 0;
-    local s = ffi.C.socket(family, kind, flags);
-    if s < 0 then
-        return nil, ffi.errno();
-    end
 
-    return self:init(s);
-end
 
-function AsyncSocket.setSocketOption(self, optname, on, level)
+
+local function setSocketOption(self, optname, on, level)
     local feature_on = ffi.new("int[1]")
     if on then feature_on[0] = 1; end
     level = level or net.SOL_SOCKET 
 
     local ret = ffi.C.setsockopt(self.fdesc.fd, level, optname, feature_on, ffi.sizeof("int"))
+    
     return ret == 0;
 end
 
-function AsyncSocket.setNonBlocking(self, on)
+local function setNonBlocking(self, on)
     return self.fdesc:setNonBlocking(on);
 end
 
-function AsyncSocket.setUseKeepAlive(self, on)
-    return self:setSocketOption(net.SO_KEEPALIVE, on);
+local function setUseKeepAlive(self, on)
+    return setSocketOption(self, net.SO_KEEPALIVE, on);
 end
 
-function AsyncSocket.setReuseAddress(self, on)
-    return self:setSocketOption(net.SO_REUSEADDR, on);
+local function setReuseAddress(self, on)
+    return setSocketOption(self, net.SO_REUSEADDR, on);
 end
 
-function AsyncSocket.getLastError(self)
+local function getLastError(self)
     local retVal = ffi.new("int[1]")
     local retValLen = ffi.new("int[1]", ffi.sizeof("int"))
 
-    local ret = self:getSocketOption(net.SO_ERROR, retVal, retValLen)
+    local ret = getSocketOption(self, net.SO_ERROR, retVal, retValLen)
 
     return retVal[0];
 end
 
-function AsyncSocket.connect(self, servername, port)
+local function connect(self, servername, port)
     local sa, size = lookupsite(servername);
     if not sa then 
         return false, size;
@@ -134,14 +180,14 @@ function AsyncSocket.connect(self, servername, port)
 
 
     -- now wait for the socket to be writable
-    local success, err = asyncio:waitForIOEvent(self.fdesc, self.ConnectEvent);
+    local success, err = waitForIOEvent(self.fdesc, self.ConnectEvent);
 
     return success, err;
 end
 
-function AsyncSocket.read(self, buff, bufflen)
+local function read(self, buff, bufflen)
     
-    local success, err = asyncio:waitForIOEvent(self.fdesc, self.ReadEvent);
+    local success, err = waitForIOEvent(self.fdesc, self.ReadEvent);
     
     --print(string.format("AsyncSocket.read(), after wait: 0x%x %s", success, tostring(err)))
 
@@ -161,9 +207,9 @@ function AsyncSocket.read(self, buff, bufflen)
     return bytesRead, err;
 end
 
-function AsyncSocket.write(self, buff, bufflen)
+local function write(self, buff, bufflen)
 
-  local success, err = asyncio:waitForIOEvent(self.fdesc, self.WriteEvent);
+  local success, err = waitForIOEvent(self.fdesc, self.WriteEvent);
   --print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
   if not success then
     return false, err;
@@ -179,8 +225,20 @@ function AsyncSocket.write(self, buff, bufflen)
   return bytes, err;
 end
 
-function AsyncSocket.close(self)
+local function close(self)
     self.fdesc:close();
 end
 
-return AsyncSocket
+local export = {
+    create = create;
+    connect = connect;
+    read = read;
+    write = write;
+    close = close;
+}
+
+-- Start off the iotask watchdog
+whenever(ioAvailable, signalIOTasks)
+
+return export
+
