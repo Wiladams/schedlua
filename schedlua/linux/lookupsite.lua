@@ -1,3 +1,6 @@
+local ffi = require("ffi")
+local net = require("schedlua.net")
+
 local function lookupsite(nodename, servname)
     --local servname = nil; -- "http"
     local res = ffi.new("struct addrinfo * [1]")

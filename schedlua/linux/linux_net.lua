@@ -2,9 +2,9 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
-local asyncio = require("schedlua.asyncio"){Kernel = Kernel, AutoStart=true}
-local epoll = require("schedlua.epoll")
-local errnos = require("schedlua.linux_errno").errnos
+--local asyncio = require("schedlua.asyncio"){Kernel = Kernel, AutoStart=true}
+--local epoll = require("schedlua.epoll")
+--local errnos = require("schedlua.linux_errno").errnos
 local exports = require("schedlua.net")
 
 

@@ -11,17 +11,12 @@ local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 
-local Kernel = require("schedlua.kernel")();
-local net = require("schedlua.linux_net")();
+local Kernel = require("schedlua.kernel");
+local AsyncSocket = require("schedlua.linux.nativesocket");
 
-local alarm = require("schedlua.alarm")(Kernel)
+
 
 local sites = require("sites");
---local asyncio = require("asyncio")
-
-local AsyncSocket = require("schedlua.AsyncSocket")
-
---asyncio:setEventQuanta(1000);
 
 
 local function httpRequest(s, sitename)
@@ -85,17 +80,18 @@ local function probeSite(sitename)
 end
 
 local function stopProgram()
-	Kernel:halt();
+	halt();
 end
 
 local function main()
 	local maxProbes = 80;
 
-	alarm:delay(stopProgram, 1000*120)
+	delay(1000*10, stopProgram)
 	
 	for idx=1,maxProbes do
-		Kernel:spawn(probeSite, sites[idx])
-		Kernel:yield();
+		--probeSite(sites[idx])
+		spawn(probeSite, sites[idx])
+		yield();
 	end
 end
 
@@ -104,10 +100,10 @@ local function probeStress()
 	alarm:delay(stopProgram, 1000*20)
 
 	for i=1,10 do
-		Kernel:spawn(probeSite, sites[i])
+		spawn(probeSite, sites[i])
 		--probeSite(sites[i])
 	end
 end
 
-Kernel:run(main)
---Kernel:run(probeStress)
+run(main)
+--run(probeStress)

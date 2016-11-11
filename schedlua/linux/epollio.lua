@@ -124,6 +124,7 @@ local epollset_mt = {
 		end,
 
 		modify = function(self, fd, event)
+			--print("epollset.modify: ", self, fd, event)
 			local ret = ffi.C.epoll_ctl(self.epfd, exports.EPOLL_CTL_MOD, fd, event)
 			if ret > -1 then
 				return ret;
@@ -134,6 +135,7 @@ local epollset_mt = {
 
 		-- struct epoll_event *__events
 		wait = function(self, events, maxevents, timeout)
+			events = events or ffi.new("struct epoll_event[1]")
 			maxevents = maxevents or 1
 			timeout = timeout or -1
 
@@ -144,7 +146,7 @@ local epollset_mt = {
 				return false, ffi.errno();
 			end
 
-			return ret;
+			return ret, events;
 		end,
 	};
 }

@@ -3,8 +3,8 @@ local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
 local net = require("schedlua.linux.linux_net")
-local nativeio = require("schedlua.linux.epollio");
-local errnos = require("schedlua.linux_errno").errnos
+local epoll = require("schedlua.linux.epollio");
+local errnos = require("schedlua.linux.linux_errno").errnos
 local lookupsite = require("schedlua.linux.lookupsite")
 
 
@@ -14,7 +14,7 @@ local lookupsite = require("schedlua.linux.lookupsite")
 local EventQuanta = 10;
 local MaxEvents = 100;		-- number of events we'll ask per quanta
 local Events = ffi.new("struct epoll_event[?]", MaxEvents);
-local PollSet = nativeio();
+local PollSet = epoll.epollset();
 
 
 local IO_READ = 1;
@@ -26,7 +26,7 @@ local function sigNameFromFileDescriptor(fd)
 	return "waitforio-"..fd
 end
 
---[[
+---[[
 local function sigNameFromEvent(event, title)
 	title = title or "";
 	local fdesc = ffi.cast("filedesc *", event.data.ptr);
@@ -50,10 +50,13 @@ end
 -- This function allows us to wait for a specific IO event
 --
 local function waitForIOEvent(fdesc, event, title)
+--print("waitForIOEvent: ", fdesc.fd, event, title)
 	local success, err = PollSet:modify(fdesc.fd, event);
-	local sigName = sigNameFromEvent(event, title);
 
+	local sigName = sigNameFromEvent(event, title);
+print("waitForIOEvent, modify, sigName: ", success, err, sigName)
 	success, err = waitForSignal(sigName);
+print("waitForIOEvent, wait: ", success, err)
 
 	return success, err;
 end
@@ -61,19 +64,23 @@ end
 
 
 local function ioAvailable()
-	local success, available = PollSet:wait(EventQuanta);
+	local success, events = PollSet:wait(Events, MaxEvents);
+
+print("ioAvailable, after wait: ", success, events, Events)
 
     if not success then return false end
 
-    return results;
+    return success, events;
 end
 
-local function signalIOTasks(available)
+local function signalIOTasks(available, events)
+    print("signalIOTasks: ", available, events)
+
     for idx=0,available-1 do
-	    local ptr = ffi.cast("struct epoll_event *", ffi.cast("char *", self.Events)+ffi.sizeof("struct epoll_event")*idx);
+	    --local event = ffi.cast("struct epoll_event *", ffi.cast("char *", Events)+ffi.sizeof("struct epoll_event")*idx);
 		--print("signalIOTasks, ptr.data.ptr: ", ptr, ptr.data.ptr);
-		local sigName = sigNameFromFileDescriptor(completionKey);
-        --print(string.format("signalIOTasks(), signaling: '%s'  Events: 0x%x", sigName,  self.Events[idx].events))
+		local sigName = sigNameFromFileDescriptor(Events[idx].data.fd);
+        print(string.format("signalIOTasks(), signaling: '%s'", sigName))
 		signalAll(sigName, Events[idx].events);
 	end
 end
@@ -84,16 +91,19 @@ end
     Create something that represents a socket in the underlying
     operating system.
 --]]
-local function create(kind, flags, family)
-    kind = kind or net.SOCK_STREAM;
-    family = family or net.AF_INET
-    flags = flags or 0;
+local NativeSocket = {}
+setmetatable(NativeSocket, {
+	__call = function(self, ...)
+		return self:create(...);
+	end,
+});
 
-    local sock = ffi.C.socket(family, kind, flags);
-    if sock < 0 then
-        return nil, ffi.errno();
-    end
+local NativeSocket_mt = {
+	__index = NativeSocket;
+}
 
+
+function NativeSocket:init(sock, kind, family, flags)
     local obj = {
         kind = kind;
         family = family;
@@ -109,7 +119,7 @@ local function create(kind, flags, family)
     obj.WatchdogEvent.data.ptr = obj.fdesc;
     obj.WatchdogEvent.events = bor(epoll.EPOLLOUT,epoll.EPOLLIN, epoll.EPOLLRDHUP, epoll.EPOLLERR, epoll.EPOLLET);
 
-    asyncio:watchForIOEvents(obj.fdesc.fd, obj.WatchdogEvent);
+    watchForIOEvents(obj.fdesc.fd, obj.WatchdogEvent);
 
     obj.ConnectEvent = ffi.new("struct epoll_event")
     obj.ConnectEvent.data.ptr = obj.fdesc;
@@ -121,17 +131,34 @@ local function create(kind, flags, family)
 
     obj.WriteEvent = ffi.new("struct epoll_event")
     obj.WriteEvent.data.ptr = obj.fdesc;
+    obj.WriteEvent.data.fd = obj.fdesc.fd;
     obj.WriteEvent.events = bor(epoll.EPOLLOUT, epoll.EPOLLERR); 
 
-
+    setmetatable(obj, NativeSocket_mt)
 
     return obj;
+end
+
+function NativeSocket:create(kind, flags, family)
+    kind = kind or net.SOCK_STREAM;
+    family = family or net.AF_INET
+    flags = flags or 0;
+
+    local sock = ffi.C.socket(family, kind, flags);
+
+--print("NativeSocket:create, sock: ", sock)
+
+    if sock < 0 then
+        return nil, ffi.errno();
+    end
+
+    return self:init(sock, kind, family, flags)
 end
 
 
 
 
-local function setSocketOption(self, optname, on, level)
+function NativeSocket.setSocketOption(self, optname, on, level)
     local feature_on = ffi.new("int[1]")
     if on then feature_on[0] = 1; end
     level = level or net.SOL_SOCKET 
@@ -141,19 +168,19 @@ local function setSocketOption(self, optname, on, level)
     return ret == 0;
 end
 
-local function setNonBlocking(self, on)
+function NativeSocket.setNonBlocking(self, on)
     return self.fdesc:setNonBlocking(on);
 end
 
-local function setUseKeepAlive(self, on)
+function NativeSocket.setUseKeepAlive(self, on)
     return setSocketOption(self, net.SO_KEEPALIVE, on);
 end
 
-local function setReuseAddress(self, on)
+function NativeSocket.setReuseAddress(self, on)
     return setSocketOption(self, net.SO_REUSEADDR, on);
 end
 
-local function getLastError(self)
+function NativeSocket.getLastError(self)
     local retVal = ffi.new("int[1]")
     local retValLen = ffi.new("int[1]", ffi.sizeof("int"))
 
@@ -162,7 +189,7 @@ local function getLastError(self)
     return retVal[0];
 end
 
-local function connect(self, servername, port)
+function NativeSocket.connect(self, servername, port)
     local sa, size = lookupsite(servername);
     if not sa then 
         return false, size;
@@ -185,7 +212,7 @@ local function connect(self, servername, port)
     return success, err;
 end
 
-local function read(self, buff, bufflen)
+function NativeSocket.read(self, buff, bufflen)
     
     local success, err = waitForIOEvent(self.fdesc, self.ReadEvent);
     
@@ -207,10 +234,10 @@ local function read(self, buff, bufflen)
     return bytesRead, err;
 end
 
-local function write(self, buff, bufflen)
+function NativeSocket.write(self, buff, bufflen)
 
   local success, err = waitForIOEvent(self.fdesc, self.WriteEvent);
-  --print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
+  print(string.format("async_write, after wait: 0x%x %s", success, tostring(err)))
   if not success then
     return false, err;
   end
@@ -225,20 +252,13 @@ local function write(self, buff, bufflen)
   return bytes, err;
 end
 
-local function close(self)
+function NativeSocket.close(self)
     self.fdesc:close();
 end
 
-local export = {
-    create = create;
-    connect = connect;
-    read = read;
-    write = write;
-    close = close;
-}
 
 -- Start off the iotask watchdog
 whenever(ioAvailable, signalIOTasks)
 
-return export
+return NativeSocket
 
