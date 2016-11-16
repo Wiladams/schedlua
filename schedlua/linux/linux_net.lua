@@ -2,91 +2,8 @@ local ffi = require("ffi")
 local bit = require("bit")
 local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
 
---local asyncio = require("schedlua.asyncio"){Kernel = Kernel, AutoStart=true}
---local epoll = require("schedlua.epoll")
---local errnos = require("schedlua.linux_errno").errnos
 local exports = require("schedlua.net")
 
-
-
-ffi.cdef[[
-struct in_addr {
-    in_addr_t       s_addr;
-};
-
-struct in6_addr {
-  unsigned char  s6_addr[16];
-};
-]]
-
-ffi.cdef[[
-/* Structure describing a generic socket address.  */
-struct sockaddr {
-  sa_family_t   sa_family;
-  char          sa_data[14];
-};
-]]
-
-ffi.cdef[[
-struct sockaddr_in {
-  sa_family_t     sin_family;
-  in_port_t       sin_port;
-  struct in_addr  sin_addr;
-    unsigned char sin_zero[sizeof (struct sockaddr) -
-      (sizeof (unsigned short int)) -
-      sizeof (in_port_t) -
-      sizeof (struct in_addr)];
-};
-]]
-
-
-ffi.cdef[[
-struct sockaddr_in6 {
-  uint8_t         sin6_len;
-  sa_family_t     sin6_family;
-  in_port_t       sin6_port;
-  uint32_t        sin6_flowinfo;
-  struct in6_addr sin6_addr;
-  uint32_t        sin6_scope_id;
-};
-
-struct sockaddr_un
-{
-    sa_family_t sun_family;
-    char sun_path[108];
-};
-
-struct sockaddr_storage {
-//  uint8_t       ss_len;
-  sa_family_t   ss_family;
-  char          __ss_pad1[6];
-  int64_t       __ss_align;
-  char          __ss_pad2[128 - 2 - 8 - 6];
-};
-
-
-
-/* Structure used to manipulate the SO_LINGER option.  */
-struct linger
-  {
-    int l_onoff;		/* Nonzero to linger on close.  */
-    int l_linger;		/* Time to linger.  */
-  };
-
-struct ethhdr {
-  unsigned char   h_dest[6];
-  unsigned char   h_source[6];
-  unsigned short  h_proto; /* __be16 */
-} __attribute__((packed));
-
-struct udphdr {
-  uint16_t source;
-  uint16_t dest;
-  uint16_t len;
-  uint16_t check;
-};
-
-]]
 
 ffi.cdef[[
 int close(int fd);
@@ -146,12 +63,6 @@ void freeaddrinfo(struct addrinfo *ai);
 
 
 exports.FIONBIO = 0x5421;
-
-
-
-
-
-
 
 
 -- Socket level values.
