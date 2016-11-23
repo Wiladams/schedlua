@@ -1,6 +1,11 @@
 --[[
-	Queue
+Queue
+
+The Queue is a simple data structure that represents a 
+first in first out behavior.
 --]]
+local tabutils = require("schedlua.tabutils")
+
 local Queue = {}
 setmetatable(Queue, {
 	__call = function(self, ...)
@@ -12,7 +17,7 @@ local Queue_mt = {
 	__index = Queue;
 }
 
-Queue.init = function(self, first, last, name)
+function Queue.init(self, first, last, name)
 	first = first or 1;
 	last = last or 0;
 
@@ -26,7 +31,7 @@ Queue.init = function(self, first, last, name)
 	return obj
 end
 
-Queue.create = function(self, first, last, name)
+function Queue.create(self, first, last, name)
 	first = first or 1
 	last = last or 0
 
@@ -39,6 +44,18 @@ function Queue.new(name)
 end
 --]]
 
+function Queue:pushFront(value)
+	-- PushLeft
+	local first = self.first - 1;
+	self.first = first;
+	self[first] = value;
+end
+
+function Queue:pinsert(value, fcomp)
+	tabutils.binsert(self, value, fcomp)
+	self.last = self.last + 1;
+end
+
 function Queue:enqueue(value)
 	--self.MyList:PushRight(value)
 	local last = self.last + 1
@@ -46,13 +63,6 @@ function Queue:enqueue(value)
 	self[last] = value
 
 	return value
-end
-
-function Queue:pushFront(value)
-	-- PushLeft
-	local first = self.first - 1;
-	self.first = first;
-	self[first] = value;
 end
 
 function Queue:dequeue(value)

@@ -3,6 +3,7 @@ local ffi = require("ffi");
 
 local Queue = require("schedlua.queue")
 local Task = require("schedlua.task");
+local tabutils = require("schedlua.tabutils")
 
 
 --[[
@@ -90,6 +91,9 @@ end
 --[[
 	Task Handling
 --]]
+local function priority_comp( a,b ) 
+   return a.Priority < b.Priority 
+end
 
 -- put a task on the ready list
 -- the 'task' should be something that can be executed,
@@ -107,12 +111,14 @@ function Scheduler.scheduleTask(self, task, params, priority)
 
 	task:setParams(params);
 	
+	self.TasksReadyToRun:pinsert(task, priority_comp);
+--[[
 	if priority == 0 then
 		self.TasksReadyToRun:pushFront(task);	
 	else
 		self.TasksReadyToRun:enqueue(task);	
 	end
-
+--]]
 	task.state = "readytorun"
 
 	return task;
