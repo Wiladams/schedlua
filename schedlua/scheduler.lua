@@ -111,14 +111,19 @@ function Scheduler.scheduleTask(self, task, params, priority)
 
 	task:setParams(params);
 	
-	self.TasksReadyToRun:pinsert(task, priority_comp);
---[[
+	-- you can almost do this for priority
+	-- but, there are some tasks which are system tasks
+	-- which should not be subject to the same scheduling
+	-- as user code tasks
+	-- self.TasksReadyToRun:pinsert(task, priority_comp);
+
+
 	if priority == 0 then
 		self.TasksReadyToRun:pushFront(task);	
 	else
 		self.TasksReadyToRun:enqueue(task);	
 	end
---]]
+
 	task.state = "readytorun"
 
 	return task;
