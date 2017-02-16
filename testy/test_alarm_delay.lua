@@ -14,7 +14,6 @@ end
 local function main()
 	print("delay(2000, twoSeconds)");
 	delay(2000, twoSeconds);
-
 	print("still going")
 end
 
