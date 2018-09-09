@@ -10,7 +10,7 @@ to higher level library routines.  The mechanism employed by schedlua is epoll.
 
 With epoll, you essentially query a file descriptor to see if it is ready
 for a specified operation to occur without blocking.  For example, if you want
-to ready from a network socket, you would perform the following operations:
+to read from a network socket, you would perform the following operations:
 
 ```lua
 function AsyncSocket.read(self, buff, bufflen)
