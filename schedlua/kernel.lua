@@ -144,23 +144,25 @@ end
 local function globalize(tbl)
 	tbl = tbl or _G;
 
+	rawset(tbl, "Kernel", Kernel);
+
 	-- task management
-	tbl["halt"] = halt;
-	tbl["run"] = run;
-	tbl["coop"] = coop;
-	tbl["spawn"] = spawn;
-	tbl["suspend"] = suspend;
-	tbl["yield"] = yield;
+	rawset(tbl, "halt", halt);
+	rawset(tbl,"run", run);
+	rawset(tbl,"coop", coop);
+	rawset(tbl,"spawn", spawn);
+	rawset(tbl,"suspend", suspend);
+	rawset(tbl,"yield", yield);
 
 	-- signaling
-	tbl["onSignal"] = onSignal;
-	tbl["signalAll"] = signalAll;
-	tbl["signalAllImmediate"] = signalAllImmediate;
-	tbl["signalOne"] = signalOne;
-	tbl["waitForSignal"] = waitForSignal;
+	rawset(tbl,"onSignal", onSignal);
+	rawset(tbl,"signalAll", signalAll);
+	rawset(tbl,"signalAllImmediate", signalAllImmediate);
+	rawset(tbl,"signalOne", signalOne);
+	rawset(tbl,"waitForSignal", waitForSignal);
 
 	-- extras
-	tbl["getCurrentTaskID"] = getCurrentTaskID;
+	rawset(tbl,"getCurrentTaskID", getCurrentTaskID);
 
 	return tbl;
 end

@@ -109,10 +109,10 @@ end
 local function globalize(tbl)
 	tbl = tbl or _G
 
-	tbl["delay"] = delay;
-	tbl["periodic"] = periodic;
-	tbl["runningTime"] = runningTime;
-	tbl["sleep"] = sleep;
+	rawset(tbl,"delay",delay);
+	rawset(tbl,"periodic",periodic);
+	rawset(tbl,"runningTime",runningTime);
+	rawset(tbl,"sleep",sleep);
 
 	return tbl;
 end

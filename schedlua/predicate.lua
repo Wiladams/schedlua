@@ -74,11 +74,11 @@ end
 local function globalize(tbl)
 	tbl = tbl or _G;
 
-	tbl["signalOnPredicate"] = signalOnPredicate;
-	tbl["waitForPredicate"] = waitForPredicate;
-	tbl["waitForTruth"] = waitForPredicate;
-	tbl["when"] = when;
-	tbl["whenever"] = whenever;
+	rawset(tbl,"signalOnPredicate", signalOnPredicate);
+	rawset(tbl,"waitForPredicate", waitForPredicate);
+	rawset(tbl,"waitForTruth", waitForPredicate);
+	rawset(tbl,"when", when);
+	rawset(tbl,"whenever", whenever);
 
 	return tbl;
 end
