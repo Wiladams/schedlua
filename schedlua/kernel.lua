@@ -61,7 +61,7 @@ local function suspend(...)
 end
 
 
-local function signalTasks(eventName, priority, allof, ...)
+local function signalTasks(eventName, priority, allofthem, ...)
 	local tasklist = Kernel.TasksSuspendedForSignal[eventName];
 
 	if not  tasklist then

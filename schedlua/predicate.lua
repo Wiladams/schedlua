@@ -50,8 +50,7 @@ end
 
 local function when(pred, func)
 	local function closure(lpred, lfunc)
-		waitForPredicate(lpred)
-		lfunc()
+		lfunc(waitForPredicate(lpred))
 	end
 
 	return spawn(closure, pred, func)
